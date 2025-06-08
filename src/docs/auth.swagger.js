@@ -23,6 +23,40 @@
  *         nombre:
  *           type: string
  *           description: Nombre completo del usuario
+ *         role:
+ *           type: string
+ *           enum: [admin, cajero, inventario, invitado]
+ *           description: Rol del usuario en el sistema
+ *         permissions:
+ *           type: object
+ *           description: Permisos del usuario basados en su rol
+ *           properties:
+ *             products:
+ *               type: object
+ *               properties:
+ *                 view: { type: boolean }
+ *                 create: { type: boolean }
+ *                 update: { type: boolean }
+ *                 delete: { type: boolean }
+ *             sales:
+ *               type: object
+ *               properties:
+ *                 view: { type: boolean }
+ *                 create: { type: boolean }
+ *                 update: { type: boolean }
+ *                 delete: { type: boolean }
+ *             reports:
+ *               type: object
+ *               properties:
+ *                 view: { type: boolean }
+ *                 export: { type: boolean }
+ *             users:
+ *               type: object
+ *               properties:
+ *                 view: { type: boolean }
+ *                 create: { type: boolean }
+ *                 update: { type: boolean }
+ *                 delete: { type: boolean }
  *         created_at:
  *           type: string
  *           format: date-time
@@ -89,7 +123,7 @@
  * @swagger
  * tags:
  *   name: Auth
- *   description: Endpoints de autenticación
+ *   description: Autenticación y gestión de usuarios
  */
 
 /**
@@ -98,6 +132,7 @@
  *   post:
  *     summary: Registrar un nuevo usuario
  *     tags: [Auth]
+ *     description: Registra un nuevo usuario con rol de cajero por defecto
  *     requestBody:
  *       required: true
  *       content:
@@ -113,8 +148,17 @@
  *               $ref: '#/components/schemas/AuthResponse'
  *       400:
  *         description: Error en los datos proporcionados
- *       500:
- *         description: Error del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: El usuario ya existe
  */
 
 /**
@@ -123,6 +167,7 @@
  *   post:
  *     summary: Iniciar sesión
  *     tags: [Auth]
+ *     description: Inicia sesión y devuelve el token JWT junto con los datos del usuario y sus permisos
  *     requestBody:
  *       required: true
  *       content:
@@ -138,6 +183,15 @@
  *               $ref: '#/components/schemas/AuthResponse'
  *       401:
  *         description: Credenciales inválidas
- *       500:
- *         description: Error del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Credenciales inválidas
  */ 

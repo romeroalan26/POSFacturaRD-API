@@ -2,33 +2,34 @@
  * @swagger
  * tags:
  *   name: Reportes
- *   description: API para generar reportes y estadísticas del sistema
+ *   description: API para obtener reportes del sistema
  */
 
 /**
  * @swagger
- * /reportes/diario:
+ * /api/reportes/ventas-diarias:
  *   get:
- *     summary: Reporte de ventas agrupadas por día
  *     tags: [Reportes]
+ *     summary: Obtener reporte de ventas diarias
+ *     description: Retorna un reporte de ventas agrupadas por día. Todos los roles pueden ver.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: fecha_inicio
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-01-01"
- *         description: Fecha de inicio para filtrar el reporte (YYYY-MM-DD)
+ *         description: Fecha de inicio para el reporte (YYYY-MM-DD)
  *       - in: query
  *         name: fecha_fin
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-12-31"
- *         description: Fecha de fin para filtrar el reporte (YYYY-MM-DD)
+ *         description: Fecha de fin para el reporte (YYYY-MM-DD)
  *     responses:
  *       200:
- *         description: Lista de ventas diarias obtenida exitosamente
+ *         description: Reporte obtenido exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -36,20 +37,22 @@
  *               items:
  *                 type: object
  *                 properties:
- *                   dia:
+ *                   fecha:
  *                     type: string
  *                     format: date
- *                     example: "2024-01-01"
+ *                     example: "2024-03-15"
  *                   total_ventas:
- *                     type: integer
- *                     description: Número total de ventas en el día
- *                     example: 15
- *                   total_monto:
  *                     type: number
- *                     description: Monto total vendido en el día
- *                     example: 3750.00
+ *                     example: 1500.00
+ *                   cantidad_ventas:
+ *                     type: integer
+ *                     example: 10
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para ver reportes
  *       400:
- *         description: Error de validación
+ *         description: Error en los parámetros
  *         content:
  *           application/json:
  *             schema:
@@ -63,58 +66,43 @@
  *                   items:
  *                     type: string
  *                   example: [
- *                     "Formato de fecha inválido",
- *                     "La fecha de inicio debe ser anterior a la fecha de fin",
- *                     "La fecha de inicio es obligatoria",
- *                     "La fecha de fin es obligatoria"
+ *                     "Formato de fecha inicio inválido. Use YYYY-MM-DD",
+ *                     "La fecha de inicio debe ser anterior a la fecha de fin"
  *                   ]
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al generar el reporte diario
  */
 
 /**
  * @swagger
- * /reportes/productos:
+ * /api/reportes/productos-mas-vendidos:
  *   get:
- *     summary: Obtener productos más vendidos
  *     tags: [Reportes]
+ *     summary: Obtener reporte de productos más vendidos
+ *     description: Retorna un reporte de los productos más vendidos. Todos los roles pueden ver.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: fecha_inicio
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-01-01"
- *         description: Fecha de inicio para filtrar el reporte (YYYY-MM-DD)
+ *         description: Fecha de inicio para el reporte (YYYY-MM-DD)
  *       - in: query
  *         name: fecha_fin
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-12-31"
- *         description: Fecha de fin para filtrar el reporte (YYYY-MM-DD)
+ *         description: Fecha de fin para el reporte (YYYY-MM-DD)
  *       - in: query
  *         name: limite
  *         schema:
  *           type: integer
  *           minimum: 1
- *           maximum: 100
  *           default: 10
- *         description: Número máximo de productos a mostrar
+ *         description: Cantidad de productos a mostrar
  *     responses:
  *       200:
- *         description: Ranking de productos por cantidad vendida obtenido exitosamente
+ *         description: Reporte obtenido exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -124,80 +112,49 @@
  *                 properties:
  *                   id:
  *                     type: integer
- *                     description: ID del producto
  *                     example: 1
  *                   nombre:
  *                     type: string
- *                     description: Nombre del producto
  *                     example: "Producto A"
  *                   total_vendido:
  *                     type: integer
- *                     description: Cantidad total vendida
- *                     example: 150
+ *                     example: 50
  *                   total_ingresos:
  *                     type: number
- *                     description: Monto total generado por el producto
- *                     example: 33750.00
+ *                     example: 11250.00
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para ver reportes
  *       400:
- *         description: Error de validación
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error de validación
- *                 errores:
- *                   type: array
- *                   items:
- *                     type: string
- *                   example: [
- *                     "Formato de fecha inválido",
- *                     "La fecha de inicio debe ser anterior a la fecha de fin",
- *                     "El límite debe ser un número entre 1 y 100",
- *                     "La fecha de inicio es obligatoria",
- *                     "La fecha de fin es obligatoria"
- *                   ]
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al generar el reporte de productos
+ *         description: Error en los parámetros
  */
 
 /**
  * @swagger
- * /reportes/metodos-pago:
+ * /api/reportes/resumen-metodo-pago:
  *   get:
- *     summary: Obtener resumen de ventas por método de pago
  *     tags: [Reportes]
+ *     summary: Obtener resumen por método de pago
+ *     description: Retorna un resumen de ventas agrupadas por método de pago. Todos los roles pueden ver.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: fecha_inicio
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-01-01"
- *         description: Fecha de inicio para filtrar el reporte (YYYY-MM-DD)
+ *         description: Fecha de inicio para el reporte (YYYY-MM-DD)
  *       - in: query
  *         name: fecha_fin
  *         schema:
  *           type: string
  *           format: date
- *           example: "2024-12-31"
- *         description: Fecha de fin para filtrar el reporte (YYYY-MM-DD)
+ *         description: Fecha de fin para el reporte (YYYY-MM-DD)
  *     responses:
  *       200:
- *         description: Resumen de ventas por método de pago obtenido exitosamente
+ *         description: Reporte obtenido exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -208,47 +165,17 @@
  *                   metodo_pago:
  *                     type: string
  *                     enum: [efectivo, tarjeta, transferencia]
- *                     description: Método de pago utilizado
  *                     example: efectivo
  *                   total_ventas:
- *                     type: integer
- *                     description: Número total de ventas con este método
- *                     example: 45
- *                   total_monto:
  *                     type: number
- *                     description: Monto total vendido con este método
- *                     example: 11250.00
+ *                     example: 5000.00
+ *                   cantidad_ventas:
+ *                     type: integer
+ *                     example: 25
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para ver reportes
  *       400:
- *         description: Error de validación
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error de validación
- *                 errores:
- *                   type: array
- *                   items:
- *                     type: string
- *                   example: [
- *                     "Formato de fecha inválido",
- *                     "La fecha de inicio debe ser anterior a la fecha de fin",
- *                     "La fecha de inicio es obligatoria",
- *                     "La fecha de fin es obligatoria"
- *                   ]
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al generar el reporte de métodos de pago
+ *         description: Error en los parámetros
  */

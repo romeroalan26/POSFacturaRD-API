@@ -7,11 +7,13 @@
 
 /**
  * @swagger
- * /ventas:
+ * /api/ventas:
  *   post:
  *     tags: [Ventas]
  *     summary: Registrar una nueva venta
- *     description: Registra una nueva venta con sus productos asociados
+ *     description: Registra una nueva venta con sus productos asociados. Requiere rol de admin o cajero.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -85,26 +87,16 @@
  *                     "El producto con ID 3 no existe",
  *                     "Método de pago inválido. Debe ser uno de: efectivo, tarjeta, transferencia"
  *                   ]
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al procesar la venta
- *                 codigo:
- *                   type: string
- *                   example: 23505
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para registrar ventas
  *   get:
  *     tags: [Ventas]
  *     summary: Obtener lista de ventas
- *     description: Retorna una lista paginada de ventas con opciones de filtrado
+ *     description: Retorna una lista paginada de ventas con opciones de filtrado. Todos los roles pueden ver.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -194,17 +186,8 @@
  *                     registros_por_pagina:
  *                       type: integer
  *                       example: 10
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al obtener las ventas
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para ver ventas
  */

@@ -7,10 +7,13 @@
 
 /**
  * @swagger
- * /productos:
+ * /api/productos:
  *   get:
  *     summary: Obtener todos los productos
  *     tags: [Productos]
+ *     description: Lista todos los productos. Requiere permiso de visualización.
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de productos obtenida exitosamente
@@ -39,27 +42,43 @@
  *                   categoria:
  *                     type: string
  *                     example: "Electrónicos"
- *       500:
- *         description: Error del servidor
+ *       401:
+ *         description: No autorizado
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 mensaje:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
  *                   type: string
- *                   example: Error del servidor
- *                 detalle:
+ *                   example: No se proporcionó token de autenticación
+ *       403:
+ *         description: No tiene permiso para ver productos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
  *                   type: string
- *                   example: Error al obtener los productos
+ *                   example: No tienes permiso para realizar esta acción
  */
 
 /**
  * @swagger
- * /productos:
+ * /api/productos:
  *   post:
  *     summary: Crear un nuevo producto
  *     tags: [Productos]
+ *     description: Crea un nuevo producto. Requiere rol de admin o inventario.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -142,34 +161,27 @@
  *                     "El campo con_itbis debe ser true o false",
  *                     "Ya existe un producto con este nombre"
  *                   ]
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al crear el producto
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para crear productos
  */
 
 /**
  * @swagger
- * /productos/{id}:
+ * /api/productos/{id}:
  *   put:
- *     summary: Actualizar un producto existente
+ *     summary: Actualizar un producto
  *     tags: [Productos]
+ *     description: Actualiza un producto existente. Requiere rol de admin o inventario.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
  *         description: ID del producto a actualizar
  *     requestBody:
  *       required: true
@@ -177,180 +189,52 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - nombre
- *               - precio
- *               - stock
  *             properties:
  *               nombre:
  *                 type: string
  *                 minLength: 1
  *                 maxLength: 100
- *                 description: Nombre del producto (máximo 100 caracteres)
- *                 example: "Producto A"
  *               precio:
  *                 type: number
  *                 minimum: 0.01
- *                 description: Precio del producto (debe ser mayor a 0)
- *                 example: 225.00
  *               stock:
  *                 type: integer
  *                 minimum: 0
- *                 description: Cantidad en inventario (debe ser 0 o mayor)
- *                 example: 50
  *               con_itbis:
  *                 type: boolean
- *                 default: false
- *                 description: Indica si el producto tiene ITBIS (solo acepta true o false)
- *                 example: true
  *               categoria:
  *                 type: string
- *                 description: Categoría del producto
- *                 example: "Electrónicos"
  *     responses:
  *       200:
  *         description: Producto actualizado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 id:
- *                   type: integer
- *                   example: 1
- *                 nombre:
- *                   type: string
- *                   example: "Producto A"
- *                 precio:
- *                   type: number
- *                   example: 225.00
- *                 stock:
- *                   type: integer
- *                   example: 50
- *                 con_itbis:
- *                   type: boolean
- *                   example: true
- *                 categoria:
- *                   type: string
- *                   example: "Electrónicos"
  *       400:
  *         description: Error de validación
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error de validación
- *                 errores:
- *                   type: array
- *                   items:
- *                     type: string
- *                   example: [
- *                     "ID de producto inválido",
- *                     "El precio debe ser un número positivo",
- *                     "El campo con_itbis debe ser true o false",
- *                     "Ya existe otro producto con este nombre"
- *                   ]
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para actualizar productos
  *       404:
  *         description: Producto no encontrado
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Producto no encontrado
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al actualizar el producto
- */
-
-/**
- * @swagger
- * /productos/{id}:
  *   delete:
- *     summary: Eliminar un producto por ID
+ *     summary: Eliminar un producto
  *     tags: [Productos]
+ *     description: Elimina un producto. Requiere rol de admin.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: integer
- *           minimum: 1
  *         description: ID del producto a eliminar
  *     responses:
  *       200:
  *         description: Producto eliminado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Producto eliminado
- *                 producto:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                       example: 1
- *                     nombre:
- *                       type: string
- *                       example: "Producto A"
- *       400:
- *         description: Error de validación
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error de validación
- *                 errores:
- *                   type: array
- *                   items:
- *                     type: string
- *                   example: [
- *                     "ID de producto inválido",
- *                     "No se puede eliminar el producto porque está asociado a ventas existentes"
- *                   ]
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para eliminar productos
  *       404:
  *         description: Producto no encontrado
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Producto no encontrado
- *       500:
- *         description: Error del servidor
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Error del servidor
- *                 detalle:
- *                   type: string
- *                   example: Error al eliminar el producto
  */

@@ -31,10 +31,23 @@ const register = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Crear usuario
+        // Obtener el rol por defecto (cajero)
+        const defaultRole = await pool.query(
+            'SELECT id FROM roles WHERE name = $1',
+            ['cajero']
+        );
+
+        if (defaultRole.rows.length === 0) {
+            return res.status(500).json({
+                success: false,
+                message: 'Error: No se encontró el rol por defecto'
+            });
+        }
+
+        // Crear usuario con rol
         const newUser = await pool.query(
-            'INSERT INTO usuarios (email, password, nombre) VALUES ($1, $2, $3) RETURNING id, email, nombre',
-            [email, hashedPassword, nombre]
+            'INSERT INTO usuarios (email, password, nombre, role_id) VALUES ($1, $2, $3, $4) RETURNING id, email, nombre',
+            [email, hashedPassword, nombre, defaultRole.rows[0].id]
         );
 
         const token = generateToken(newUser.rows[0]);
@@ -59,9 +72,12 @@ const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Verificar si el usuario existe
+        // Verificar si el usuario existe y obtener su rol
         const user = await pool.query(
-            'SELECT * FROM usuarios WHERE email = $1',
+            `SELECT u.*, r.name as role_name, r.permissions 
+             FROM usuarios u 
+             JOIN roles r ON u.role_id = r.id 
+             WHERE u.email = $1`,
             [email]
         );
 
@@ -89,7 +105,9 @@ const login = async (req, res) => {
                 user: {
                     id: user.rows[0].id,
                     email: user.rows[0].email,
-                    nombre: user.rows[0].nombre
+                    nombre: user.rows[0].nombre,
+                    role: user.rows[0].role_name,
+                    permissions: user.rows[0].permissions
                 },
                 token
             }

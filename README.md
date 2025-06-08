@@ -64,6 +64,42 @@ src/
 - ✅ Paginación y filtros en listados
 - ✅ Manejo de errores detallado
 
+## 📋 Roles y Permisos
+
+El sistema implementa cuatro roles con diferentes niveles de acceso:
+
+| Rol          | Descripción breve                                             | Permisos clave                                                                     |
+| ------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `admin`      | Dueño o supervisor. Accede a todo.                            | Ver/editar productos, ventas, reportes, usuarios.                                  |
+| `cajero`     | Operador de caja. Vende productos.                            | Solo registrar ventas, ver productos, **sin modificar datos**.                     |
+| `inventario` | Encargado de stock.                                           | Agrega/edita productos, ve reportes de stock, **no puede facturar ni ver ventas**. |
+| `invitado`   | Rol opcional, solo lectura. Ideal para pruebas o vistas demo. | Puede consultar productos y reportes, **sin escribir nada**.                       |
+
+### Detalle de Permisos por Ruta
+
+#### Autenticación (`/api/auth`)
+
+- `POST /register`: Público
+- `POST /login`: Público
+
+#### Productos (`/api/productos`)
+
+- `GET /`: Todos los roles pueden ver
+- `POST /`: Solo admin e inventario pueden crear
+- `PUT /:id`: Solo admin e inventario pueden actualizar
+- `DELETE /:id`: Solo admin puede eliminar
+
+#### Ventas (`/api/ventas`)
+
+- `GET /`: Todos los roles pueden ver
+- `POST /`: Solo admin y cajero pueden crear
+
+#### Reportes (`/api/reportes`)
+
+- `GET /ventas-diarias`: Todos los roles pueden ver
+- `GET /productos-mas-vendidos`: Todos los roles pueden ver
+- `GET /resumen-metodo-pago`: Todos los roles pueden ver
+
 ## 🚀 Cómo ejecutar
 
 1. Clonar el repositorio:
@@ -91,7 +127,13 @@ src/
    JWT_SECRET=tu_clave_secreta_muy_segura
    ```
 
-4. Iniciar servidor:
+4. Ejecutar migraciones:
+
+   ```bash
+   npm run migrate
+   ```
+
+5. Iniciar servidor:
 
    ```bash
    # Desarrollo (con nodemon)
@@ -101,7 +143,7 @@ src/
    npm start
    ```
 
-5. Acceder a la documentación Swagger:
+6. Acceder a la documentación Swagger:
    ```
    http://localhost:4100/api-docs
    ```
