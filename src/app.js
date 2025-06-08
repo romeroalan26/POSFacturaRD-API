@@ -14,6 +14,9 @@ app.use(express.json());
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Rutas
+const authRoutes = require('./routes/authRoutes');
+app.use('/api/auth', authRoutes);
+
 const productosRoutes = require('./routes/productos');
 app.use('/productos', productosRoutes);
 const ventasRoutes = require('./routes/ventas');

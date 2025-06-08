@@ -9,6 +9,8 @@ Sistema backend para punto de venta (POS) orientado a mipymes como bares, discot
 - Swagger (OpenAPI 3.0)
 - Winston (Logging)
 - Morgan (HTTP Request Logging)
+- JWT (Autenticación)
+- Bcrypt (Encriptación)
 - Cloud-ready para Raspberry Pi o Vercel/Railway
 
 ## 📦 Estructura del Proyecto
@@ -19,12 +21,17 @@ src/
 ├── routes/         # Definición de rutas
 ├── db/            # Configuración de base de datos
 ├── docs/          # Documentación Swagger
-├── middleware/    # Middlewares (logging, etc)
+├── middleware/    # Middlewares (logging, auth, etc)
 ├── utils/         # Utilidades y helpers
 └── app.js         # Configuración de Express
 ```
 
 ## 🔄 Módulos y Endpoints
+
+### Autenticación
+
+- `POST /api/auth/register` - Registrar nuevo usuario
+- `POST /api/auth/login` - Iniciar sesión
 
 ### Productos
 
@@ -46,6 +53,7 @@ src/
 
 ## ✨ Características
 
+- ✅ Autenticación JWT
 - ✅ Control automático de stock
 - ✅ Validación de precios en tiempo real
 - ✅ Manejo de ITBIS por producto
@@ -80,6 +88,7 @@ src/
    DB_PASSWORD=tu_clave
    DB_NAME=posdb
    PORT=4100
+   JWT_SECRET=tu_clave_secreta_muy_segura
    ```
 
 4. Iniciar servidor:
@@ -98,6 +107,13 @@ src/
    ```
 
 ## 📝 Validaciones
+
+### Autenticación
+
+- Email único y válido
+- Contraseña mínima de 6 caracteres
+- Nombre obligatorio
+- Token JWT válido para rutas protegidas
 
 ### Productos
 
@@ -125,6 +141,41 @@ src/
 - Logs de errores detallados
 - Tracking de rendimiento
 - Almacenamiento en archivos por fecha
+
+## 🔒 Autenticación
+
+### Registro de Usuario
+
+```bash
+POST /api/auth/register
+Content-Type: application/json
+
+{
+    "email": "usuario@ejemplo.com",
+    "password": "contraseña123",
+    "nombre": "Nombre Usuario"
+}
+```
+
+### Inicio de Sesión
+
+```bash
+POST /api/auth/login
+Content-Type: application/json
+
+{
+    "email": "usuario@ejemplo.com",
+    "password": "contraseña123"
+}
+```
+
+### Uso del Token
+
+Para acceder a rutas protegidas, incluir el token en el header:
+
+```
+Authorization: Bearer tu_token_jwt
+```
 
 ## 🧾 Licencia
 
