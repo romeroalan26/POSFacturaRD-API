@@ -1,10 +1,43 @@
 const db = require('../db');
 
+// Validaciones
+const validarVenta = (venta) => {
+  const errores = [];
+  const metodosPagoValidos = ['efectivo', 'tarjeta', 'transferencia'];
+
+  if (!Array.isArray(venta.productos) || venta.productos.length === 0) {
+    errores.push('Debe enviar al menos un producto');
+    return errores;
+  }
+
+  if (!venta.metodo_pago) {
+    errores.push('El método de pago es obligatorio');
+  } else if (!metodosPagoValidos.includes(venta.metodo_pago.toLowerCase())) {
+    errores.push(`Método de pago inválido. Debe ser uno de: ${metodosPagoValidos.join(', ')}`);
+  }
+
+  for (const [index, producto] of venta.productos.entries()) {
+    if (!producto.producto_id) {
+      errores.push(`El producto ${index + 1} no tiene ID`);
+    }
+    if (!producto.cantidad || producto.cantidad <= 0) {
+      errores.push(`La cantidad del producto ${index + 1} debe ser mayor a 0`);
+    }
+    if (!producto.precio_unitario || producto.precio_unitario <= 0) {
+      errores.push(`El precio unitario del producto ${index + 1} debe ser mayor a 0`);
+    }
+  }
+
+  return errores;
+};
+
 const registrarVenta = async (req, res) => {
   const { productos, metodo_pago } = req.body;
 
-  if (!Array.isArray(productos) || productos.length === 0) {
-    return res.status(400).json({ mensaje: 'Debe enviar al menos un producto' });
+  // Validar datos de entrada
+  const errores = validarVenta({ productos, metodo_pago });
+  if (errores.length > 0) {
+    return res.status(400).json({ mensaje: 'Error de validación', errores });
   }
 
   const client = await db.pool.connect();
@@ -12,11 +45,56 @@ const registrarVenta = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    const total = productos.reduce((sum, p) => sum + p.precio_unitario * p.cantidad, 0);
+    // Verificar existencia y stock de productos
+    for (const prod of productos) {
+      const productoExistente = await client.query(
+        'SELECT id, nombre, precio, stock FROM productos WHERE id = $1',
+        [prod.producto_id]
+      );
+
+      if (productoExistente.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          mensaje: 'Error de validación',
+          errores: [`El producto con ID ${prod.producto_id} no existe`]
+        });
+      }
+
+      const producto = productoExistente.rows[0];
+
+      // Verificar stock
+      if (producto.stock < prod.cantidad) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          mensaje: 'Error de validación',
+          errores: [`Stock insuficiente para el producto ${producto.nombre}. Stock disponible: ${producto.stock}`]
+        });
+      }
+
+      // Convertir precios a números para la comparación
+      const precioActual = parseFloat(producto.precio);
+      const precioEnviado = parseFloat(prod.precio_unitario);
+
+      // Verificar precio con tolerancia
+      const diferenciaPrecio = Math.abs(precioActual - precioEnviado);
+      const tolerancia = 0.01; // 1 centavo de tolerancia
+
+      if (diferenciaPrecio > tolerancia) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          mensaje: 'Error de validación',
+          errores: [
+            `El precio del producto "${producto.nombre}" ha cambiado. Precio actual: ${precioActual.toFixed(2)}, Precio enviado: ${precioEnviado.toFixed(2)}`
+          ]
+        });
+      }
+    }
+
+    const total = productos.reduce((sum, p) => sum + (parseFloat(p.precio_unitario) * p.cantidad), 0);
 
     const ventaRes = await client.query(
       'INSERT INTO ventas (total, metodo_pago) VALUES ($1, $2) RETURNING id',
-      [total, metodo_pago]
+      [total, metodo_pago.toLowerCase()]
     );
 
     const ventaId = ventaRes.rows[0].id;
@@ -24,7 +102,7 @@ const registrarVenta = async (req, res) => {
     for (const prod of productos) {
       await client.query(
         'INSERT INTO venta_productos (venta_id, producto_id, cantidad, precio_unitario) VALUES ($1, $2, $3, $4)',
-        [ventaId, prod.producto_id, prod.cantidad, prod.precio_unitario]
+        [ventaId, prod.producto_id, prod.cantidad, parseFloat(prod.precio_unitario)]
       );
 
       await client.query(
@@ -40,7 +118,31 @@ const registrarVenta = async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error al registrar venta:', error);
-    res.status(500).json({ mensaje: 'Error del servidor' });
+
+    // Determinar el tipo de error y responder apropiadamente
+    if (error.code === '23505') { // Violación de restricción única
+      res.status(400).json({
+        mensaje: 'Error de validación',
+        errores: ['Ya existe una venta con los mismos datos']
+      });
+    } else if (error.code === '23503') { // Violación de clave foránea
+      res.status(400).json({
+        mensaje: 'Error de validación',
+        errores: ['Uno de los productos no existe en la base de datos']
+      });
+    } else if (error.code === '22P02') { // Error de tipo de dato
+      res.status(400).json({
+        mensaje: 'Error de validación',
+        errores: ['Tipo de dato inválido en uno de los campos']
+      });
+    } else {
+      // Para otros errores, enviar un mensaje más descriptivo
+      res.status(500).json({
+        mensaje: 'Error del servidor',
+        detalle: error.message,
+        codigo: error.code
+      });
+    }
   } finally {
     client.release();
   }
@@ -48,7 +150,13 @@ const registrarVenta = async (req, res) => {
 
 const obtenerVentas = async (req, res) => {
   try {
-    const resultado = await db.query(`
+    // Obtener parámetros de paginación y filtros
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Construir la consulta base
+    let query = `
       SELECT v.id, v.fecha, v.total, v.metodo_pago,
         json_agg(
           json_build_object(
@@ -59,11 +167,62 @@ const obtenerVentas = async (req, res) => {
         ) AS productos
       FROM ventas v
       LEFT JOIN venta_productos vp ON v.id = vp.venta_id
-      GROUP BY v.id
-      ORDER BY v.fecha DESC
-    `);
+    `;
 
-    res.json(resultado.rows);
+    // Agregar filtros si existen
+    const whereConditions = [];
+    const queryParams = [];
+    let paramIndex = 1;
+
+    if (req.query.fecha_inicio) {
+      whereConditions.push(`v.fecha >= $${paramIndex}`);
+      queryParams.push(req.query.fecha_inicio);
+      paramIndex++;
+    }
+
+    if (req.query.fecha_fin) {
+      whereConditions.push(`v.fecha <= $${paramIndex}`);
+      queryParams.push(req.query.fecha_fin);
+      paramIndex++;
+    }
+
+    if (req.query.metodo_pago) {
+      whereConditions.push(`v.metodo_pago = $${paramIndex}`);
+      queryParams.push(req.query.metodo_pago.toLowerCase());
+      paramIndex++;
+    }
+
+    if (whereConditions.length > 0) {
+      query += ' WHERE ' + whereConditions.join(' AND ');
+    }
+
+    // Agregar agrupación y ordenamiento
+    query += ' GROUP BY v.id ORDER BY v.fecha DESC';
+
+    // Agregar paginación
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(limit, offset);
+
+    const resultado = await db.query(query, queryParams);
+
+    // Obtener el total de registros para la paginación
+    const countQuery = `
+      SELECT COUNT(DISTINCT v.id) 
+      FROM ventas v
+      ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
+    `;
+    const totalResult = await db.query(countQuery, queryParams.slice(0, -2));
+    const total = parseInt(totalResult.rows[0].count);
+
+    res.json({
+      ventas: resultado.rows,
+      paginacion: {
+        total,
+        pagina_actual: page,
+        total_paginas: Math.ceil(total / limit),
+        registros_por_pagina: limit
+      }
+    });
   } catch (error) {
     console.error('Error al obtener ventas:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });

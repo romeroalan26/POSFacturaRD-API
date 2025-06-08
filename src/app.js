@@ -1,8 +1,13 @@
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
+const requestLogger = require('./middleware/requestLogger');
+const logger = require('./utils/logger');
 
 const app = express();
+
+// Middleware de logging
+app.use(requestLogger);
 
 app.use(express.json());
 
@@ -15,9 +20,16 @@ const ventasRoutes = require('./routes/ventas');
 app.use('/ventas', ventasRoutes);
 const reportesRoutes = require('./routes/reportes');
 app.use('/reportes', reportesRoutes);
+
 // Prueba
 app.get('/', (req, res) => {
   res.send('POS Backend corriendo correctamente 🚀');
+});
+
+// Manejador de errores global
+app.use((err, req, res, next) => {
+  logger.error('Error no manejado:', err);
+  res.status(500).json({ mensaje: 'Error interno del servidor' });
 });
 
 module.exports = app;
