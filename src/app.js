@@ -1,28 +1,32 @@
 const express = require('express');
+const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./swagger');
 const requestLogger = require('./middleware/requestLogger');
 const logger = require('./utils/logger');
+const authRoutes = require('./routes/authRoutes');
+const productosRoutes = require('./routes/productos');
+const ventasRoutes = require('./routes/ventas');
+const reportesRoutes = require('./routes/reportes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
 
 // Middleware de logging
 app.use(requestLogger);
 
-app.use(express.json());
-
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Rutas
-const authRoutes = require('./routes/authRoutes');
-app.use('/api/auth', authRoutes);
-
-const productosRoutes = require('./routes/productos');
+app.use('/auth', authRoutes);
 app.use('/productos', productosRoutes);
-const ventasRoutes = require('./routes/ventas');
 app.use('/ventas', ventasRoutes);
-const reportesRoutes = require('./routes/reportes');
 app.use('/reportes', reportesRoutes);
+app.use('/usuarios', userRoutes);
 
 // Prueba
 app.get('/', (req, res) => {
