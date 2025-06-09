@@ -56,7 +56,7 @@ src/
 - ✅ Autenticación JWT
 - ✅ Control automático de stock
 - ✅ Validación de precios en tiempo real
-- ✅ Manejo de ITBIS por producto
+- ✅ Manejo de ITBIS configurable por sistema
 - ✅ Reportes detallados
 - ✅ Logging de operaciones
 - ✅ Documentación Swagger completa
@@ -118,13 +118,19 @@ El sistema implementa cuatro roles con diferentes niveles de acceso:
 3. Crear archivo `.env`:
 
    ```ini
+   # Configuración de la base de datos
    DB_HOST=localhost
    DB_PORT=5432
    DB_USER=tu_usuario
    DB_PASSWORD=tu_clave
    DB_NAME=posdb
+
+   # Configuración de la aplicación
    PORT=4100
    JWT_SECRET=tu_clave_secreta_muy_segura
+
+   # Configuración de impuestos
+   ITBIS_RATE=0.18  # Tasa de ITBIS (18% por defecto)
    ```
 
 4. Ejecutar migraciones:
@@ -170,6 +176,7 @@ El sistema implementa cuatro roles con diferentes niveles de acceso:
 - Verificación de precios actualizados
 - Métodos de pago válidos (efectivo, tarjeta, transferencia)
 - Transacciones atómicas
+- Cálculo automático de ITBIS según configuración del sistema
 
 ### Reportes
 
@@ -199,24 +206,40 @@ Content-Type: application/json
 }
 ```
 
-### Inicio de Sesión
+### Ejemplo de Venta
 
 ```bash
-POST /api/auth/login
+POST /api/ventas
 Content-Type: application/json
 
 {
-    "email": "usuario@ejemplo.com",
-    "password": "contraseña123"
+    "metodo_pago": "efectivo",
+    "productos": [
+        {
+            "producto_id": 1,
+            "cantidad": 2,
+            "precio_unitario": 100.00
+        },
+        {
+            "producto_id": 2,
+            "cantidad": 1,
+            "precio_unitario": 150.00
+        }
+    ]
 }
 ```
 
-### Uso del Token
+Respuesta:
 
-Para acceder a rutas protegidas, incluir el token en el header:
-
-```
-Authorization: Bearer tu_token_jwt
+```json
+{
+  "mensaje": "Venta registrada",
+  "venta_id": 1,
+  "subtotal": 350.0,
+  "itbis_total": 63.0,
+  "total_final": 413.0,
+  "itbis_rate": 0.18
+}
 ```
 
 ## 🧾 Licencia

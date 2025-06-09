@@ -11,7 +11,9 @@
  *   post:
  *     tags: [Ventas]
  *     summary: Registrar una nueva venta
- *     description: Registra una nueva venta con sus productos asociados. Requiere rol de admin o cajero.
+ *     description: |
+ *       Registra una nueva venta con sus productos asociados. Requiere rol de admin o cajero.
+ *       El ITBIS se calcula automáticamente según la configuración del sistema (por defecto 18%).
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -67,6 +69,22 @@
  *                 venta_id:
  *                   type: integer
  *                   example: 1
+ *                 subtotal:
+ *                   type: number
+ *                   description: Suma total de los productos antes del ITBIS
+ *                   example: 1150.00
+ *                 itbis_total:
+ *                   type: number
+ *                   description: Monto total del ITBIS calculado
+ *                   example: 207.00
+ *                 total_final:
+ *                   type: number
+ *                   description: Monto total a pagar (subtotal + ITBIS)
+ *                   example: 1357.00
+ *                 itbis_rate:
+ *                   type: number
+ *                   description: Tasa de ITBIS aplicada (configurable en .env)
+ *                   example: 0.18
  *       400:
  *         description: Error de validación
  *         content:
@@ -151,9 +169,18 @@
  *                         type: string
  *                         format: date-time
  *                         example: "2024-03-15T14:30:00Z"
- *                       total:
+ *                       subtotal:
  *                         type: number
- *                         example: 450.00
+ *                         description: Suma total de los productos antes del ITBIS
+ *                         example: 1150.00
+ *                       itbis_total:
+ *                         type: number
+ *                         description: Monto total del ITBIS calculado
+ *                         example: 207.00
+ *                       total_final:
+ *                         type: number
+ *                         description: Monto total a pagar (subtotal + ITBIS)
+ *                         example: 1357.00
  *                       metodo_pago:
  *                         type: string
  *                         example: efectivo
@@ -171,6 +198,10 @@
  *                             precio_unitario:
  *                               type: number
  *                               example: 225.00
+ *                             subtotal_producto:
+ *                               type: number
+ *                               description: Subtotal del producto (cantidad × precio_unitario)
+ *                               example: 450.00
  *                 paginacion:
  *                   type: object
  *                   properties:
@@ -186,6 +217,15 @@
  *                     registros_por_pagina:
  *                       type: integer
  *                       example: 10
+ *                 subtotal:
+ *                   type: number
+ *                   example: 400.00
+ *                 itbis_total:
+ *                   type: number
+ *                   example: 72.00
+ *                 total_final:
+ *                   type: number
+ *                   example: 472.00
  *       401:
  *         description: No autorizado
  *       403:

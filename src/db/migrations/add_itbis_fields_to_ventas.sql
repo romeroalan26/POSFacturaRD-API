@@ -1,0 +1,4 @@
+ALTER TABLE ventas
+ADD COLUMN IF NOT EXISTS subtotal numeric(10,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS itbis_total numeric(10,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS total_final numeric(10,2) DEFAULT 0; 

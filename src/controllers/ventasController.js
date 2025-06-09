@@ -1,4 +1,5 @@
 const db = require('../db');
+require('dotenv').config();
 
 // Validaciones
 const validarVenta = (venta) => {
@@ -45,10 +46,14 @@ const registrarVenta = async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Verificar existencia y stock de productos
+    let subtotal = 0;
+    let itbis_total = 0;
+    const ITBIS_RATE = parseFloat(process.env.ITBIS_RATE || '0.18');
+
+    // Verificar existencia, stock y calcular ITBIS
     for (const prod of productos) {
       const productoExistente = await client.query(
-        'SELECT id, nombre, precio, stock FROM productos WHERE id = $1',
+        'SELECT id, nombre, precio, stock, con_itbis FROM productos WHERE id = $1',
         [prod.producto_id]
       );
 
@@ -77,7 +82,7 @@ const registrarVenta = async (req, res) => {
 
       // Verificar precio con tolerancia
       const diferenciaPrecio = Math.abs(precioActual - precioEnviado);
-      const tolerancia = 0.01; // 1 centavo de tolerancia
+      const tolerancia = 0.01;
 
       if (diferenciaPrecio > tolerancia) {
         await client.query('ROLLBACK');
@@ -88,13 +93,23 @@ const registrarVenta = async (req, res) => {
           ]
         });
       }
+
+      // Calcular subtotal e ITBIS
+      const productoSubtotal = precioEnviado * prod.cantidad;
+      subtotal += productoSubtotal;
+      if (producto.con_itbis === true) {
+        itbis_total += productoSubtotal * ITBIS_RATE;
+      }
     }
 
-    const total = productos.reduce((sum, p) => sum + (parseFloat(p.precio_unitario) * p.cantidad), 0);
+    // Redondear a 2 decimales
+    subtotal = parseFloat(subtotal.toFixed(2));
+    itbis_total = parseFloat(itbis_total.toFixed(2));
+    const total_final = parseFloat((subtotal + itbis_total).toFixed(2));
 
     const ventaRes = await client.query(
-      'INSERT INTO ventas (total, metodo_pago) VALUES ($1, $2) RETURNING id',
-      [total, metodo_pago.toLowerCase()]
+      'INSERT INTO ventas (subtotal, itbis_total, total_final, metodo_pago) VALUES ($1, $2, $3, $4) RETURNING id',
+      [subtotal, itbis_total, total_final, metodo_pago.toLowerCase()]
     );
 
     const ventaId = ventaRes.rows[0].id;
@@ -113,7 +128,14 @@ const registrarVenta = async (req, res) => {
 
     await client.query('COMMIT');
 
-    res.status(201).json({ mensaje: 'Venta registrada', venta_id: ventaId });
+    res.status(201).json({
+      mensaje: 'Venta registrada',
+      venta_id: ventaId,
+      subtotal,
+      itbis_total,
+      total_final,
+      itbis_rate: ITBIS_RATE
+    });
 
   } catch (error) {
     await client.query('ROLLBACK');
