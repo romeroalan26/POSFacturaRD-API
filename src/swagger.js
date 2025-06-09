@@ -18,13 +18,9 @@ const options = {
     },
     servers: [
       {
-        url: 'http://10.0.0.20:4100',
+        url: process.env.API_URL || 'http://localhost:4100',
         description: 'Servidor de desarrollo',
       },
-      {
-        url: 'http://localhost:4100',
-        description: 'Servidor local',
-      }
     ],
     components: {
       securitySchemes: {
