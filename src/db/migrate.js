@@ -13,8 +13,21 @@ async function runMigrations() {
             path.join(__dirname, 'migrations', 'create_roles_table.sql'),
             'utf8'
         );
-
         await client.query(rolesMigration);
+
+        // Leer y ejecutar la migración de usuarios
+        const usersMigration = fs.readFileSync(
+            path.join(__dirname, 'migrations', 'create_users_table.sql'),
+            'utf8'
+        );
+        await client.query(usersMigration);
+
+        // Leer y ejecutar la migración de índices
+        const indexesMigration = fs.readFileSync(
+            path.join(__dirname, 'migrations', 'create_indexes.sql'),
+            'utf8'
+        );
+        await client.query(indexesMigration);
 
         await client.query('COMMIT');
         console.log('Migraciones ejecutadas exitosamente');

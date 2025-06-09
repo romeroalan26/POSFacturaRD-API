@@ -1,28 +1,37 @@
 const db = require('../db');
 
 // Validaciones
-const validarProducto = (producto) => {
+const validarProducto = (producto, esActualizacion = false) => {
   const errores = [];
 
-  if (!producto.nombre || producto.nombre.trim().length === 0) {
-    errores.push('El nombre es obligatorio');
-  } else if (producto.nombre.length > 100) {
-    errores.push('El nombre no puede tener más de 100 caracteres');
+  // Solo validar nombre si se proporciona o si no es actualización
+  if (!esActualizacion || producto.nombre !== undefined) {
+    if (!producto.nombre || producto.nombre.trim().length === 0) {
+      errores.push('El nombre es obligatorio');
+    } else if (producto.nombre.length > 100) {
+      errores.push('El nombre no puede tener más de 100 caracteres');
+    }
   }
 
-  if (producto.precio === undefined || producto.precio === null) {
-    errores.push('El precio es obligatorio');
-  } else if (typeof producto.precio !== 'number' || producto.precio <= 0) {
-    errores.push('El precio debe ser un número positivo');
+  // Solo validar precio si se proporciona o si no es actualización
+  if (!esActualizacion || producto.precio !== undefined) {
+    if (producto.precio === undefined || producto.precio === null) {
+      errores.push('El precio es obligatorio');
+    } else if (typeof producto.precio !== 'number' || producto.precio <= 0) {
+      errores.push('El precio debe ser un número positivo');
+    }
   }
 
-  if (producto.stock === undefined || producto.stock === null) {
-    errores.push('El stock es obligatorio');
-  } else if (!Number.isInteger(producto.stock) || producto.stock < 0) {
-    errores.push('El stock debe ser un número entero no negativo');
+  // Solo validar stock si se proporciona o si no es actualización
+  if (!esActualizacion || producto.stock !== undefined) {
+    if (producto.stock === undefined || producto.stock === null) {
+      errores.push('El stock es obligatorio');
+    } else if (!Number.isInteger(producto.stock) || producto.stock < 0) {
+      errores.push('El stock debe ser un número entero no negativo');
+    }
   }
 
-  // Validar que con_itbis sea un booleano
+  // Validar que con_itbis sea un booleano si se proporciona
   if (producto.con_itbis !== undefined && producto.con_itbis !== null) {
     if (typeof producto.con_itbis !== 'boolean') {
       errores.push('El campo con_itbis debe ser true o false');
@@ -105,8 +114,8 @@ const actualizarProducto = async (req, res) => {
     });
   }
 
-  // Validar campos
-  const errores = validarProducto({ nombre, precio, stock, con_itbis });
+  // Validar campos (pasando true para indicar que es una actualización)
+  const errores = validarProducto({ nombre, precio, stock, con_itbis }, true);
   if (errores.length > 0) {
     return res.status(400).json({ mensaje: 'Error de validación', errores });
   }
@@ -114,7 +123,7 @@ const actualizarProducto = async (req, res) => {
   try {
     // Verificar si el producto existe
     const productoExistente = await db.query(
-      'SELECT id FROM productos WHERE id = $1',
+      'SELECT id, nombre FROM productos WHERE id = $1',
       [id]
     );
 
@@ -122,30 +131,72 @@ const actualizarProducto = async (req, res) => {
       return res.status(404).json({ mensaje: 'Producto no encontrado' });
     }
 
-    // Verificar si el nuevo nombre ya existe en otro producto
-    const nombreDuplicado = await db.query(
-      'SELECT id FROM productos WHERE nombre = $1 AND id != $2',
-      [nombre.trim(), id]
-    );
+    // Solo verificar nombre duplicado si se está actualizando el nombre
+    if (nombre) {
+      const nombreDuplicado = await db.query(
+        'SELECT id FROM productos WHERE nombre = $1 AND id != $2',
+        [nombre.trim(), id]
+      );
 
-    if (nombreDuplicado.rows.length > 0) {
+      if (nombreDuplicado.rows.length > 0) {
+        return res.status(400).json({
+          mensaje: 'Error de validación',
+          errores: ['Ya existe otro producto con este nombre']
+        });
+      }
+    }
+
+    // Construir la consulta dinámicamente basada en los campos proporcionados
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (nombre !== undefined) {
+      updates.push(`nombre = $${paramIndex}`);
+      values.push(nombre.trim());
+      paramIndex++;
+    }
+
+    if (precio !== undefined) {
+      updates.push(`precio = $${paramIndex}`);
+      values.push(precio);
+      paramIndex++;
+    }
+
+    if (stock !== undefined) {
+      updates.push(`stock = $${paramIndex}`);
+      values.push(stock);
+      paramIndex++;
+    }
+
+    if (con_itbis !== undefined) {
+      updates.push(`con_itbis = $${paramIndex}`);
+      values.push(con_itbis === true || con_itbis === 'true' || con_itbis === 1);
+      paramIndex++;
+    }
+
+    if (categoria !== undefined) {
+      updates.push(`categoria = $${paramIndex}`);
+      values.push(categoria);
+      paramIndex++;
+    }
+
+    if (updates.length === 0) {
       return res.status(400).json({
         mensaje: 'Error de validación',
-        errores: ['Ya existe otro producto con este nombre']
+        errores: ['Debe proporcionar al menos un campo para actualizar']
       });
     }
 
-    // Convertir con_itbis a booleano explícitamente
-    const conItbisBoolean = con_itbis === true || con_itbis === 'true' || con_itbis === 1;
+    values.push(id);
+    const query = `
+      UPDATE productos 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
 
-    const resultado = await db.query(
-      `UPDATE productos 
-       SET nombre = $1, precio = $2, stock = $3, con_itbis = $4, categoria = $5
-       WHERE id = $6
-       RETURNING *`,
-      [nombre.trim(), precio, stock, conItbisBoolean, categoria, id]
-    );
-
+    const resultado = await db.query(query, values);
     res.json(resultado.rows[0]);
   } catch (error) {
     console.error('Error al actualizar producto:', error);
