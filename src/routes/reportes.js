@@ -1,6 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerVentasDiarias, obtenerProductosMasVendidos, obtenerResumenPorMetodoPago } = require('../controllers/reportesController');
+const {
+    obtenerVentasDiarias,
+    obtenerProductosMasVendidos,
+    obtenerResumenPorMetodoPago,
+    obtenerResumenGeneral,
+    obtenerVentasPorHora,
+    obtenerTendenciaVentas,
+    obtenerProductosBajoStock
+} = require('../controllers/reportesController');
 const authMiddleware = require('../middleware/auth');
 const checkPermission = require('../middleware/checkPermission');
 
@@ -8,5 +16,9 @@ const checkPermission = require('../middleware/checkPermission');
 router.get('/ventas-diarias', authMiddleware, checkPermission('reports', 'view'), obtenerVentasDiarias);
 router.get('/productos-mas-vendidos', authMiddleware, checkPermission('reports', 'view'), obtenerProductosMasVendidos);
 router.get('/resumen-metodo-pago', authMiddleware, checkPermission('reports', 'view'), obtenerResumenPorMetodoPago);
+router.get('/resumen-general', authMiddleware, checkPermission('reports', 'view'), obtenerResumenGeneral);
+router.get('/ventas-por-hora', authMiddleware, checkPermission('reports', 'view'), obtenerVentasPorHora);
+router.get('/tendencia-ventas', authMiddleware, checkPermission('reports', 'view'), obtenerTendenciaVentas);
+router.get('/productos-bajo-stock', authMiddleware, checkPermission('reports', 'view'), obtenerProductosBajoStock);
 
 module.exports = router;

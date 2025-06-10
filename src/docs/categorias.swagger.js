@@ -1,17 +1,17 @@
 /**
  * @swagger
  * tags:
- *   name: Productos
- *   description: API para gestionar el inventario de productos
+ *   name: Categorías
+ *   description: API para gestionar las categorías de productos
  */
 
 /**
  * @swagger
- * /api/productos:
+ * /api/categorias:
  *   get:
- *     summary: Obtiene la lista de productos
- *     tags: [Productos]
- *     description: Retorna la lista de productos con paginación y filtros
+ *     summary: Obtiene la lista de categorías
+ *     tags: [Categorías]
+ *     description: Retorna la lista de categorías con paginación y filtros
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -30,18 +30,13 @@
  *           default: 10
  *         description: Cantidad de elementos por página
  *       - in: query
- *         name: categoria_id
- *         schema:
- *           type: integer
- *         description: Filtrar por ID de categoría
- *       - in: query
  *         name: buscar
  *         schema:
  *           type: string
- *         description: Buscar por nombre de producto
+ *         description: Buscar por nombre de categoría
  *     responses:
  *       200:
- *         description: Lista de productos obtenida exitosamente
+ *         description: Lista de categorías obtenida exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -56,52 +51,41 @@
  *                         type: integer
  *                       nombre:
  *                         type: string
- *                       precio:
- *                         type: string
- *                         format: float
- *                       stock:
- *                         type: integer
- *                       con_itbis:
- *                         type: boolean
- *                       categoria_id:
- *                         type: integer
- *                         nullable: true
- *                       categoria_nombre:
+ *                       descripcion:
  *                         type: string
  *                         nullable: true
+ *                       created_at:
+ *                         type: string
+ *                         format: date-time
+ *                       updated_at:
+ *                         type: string
+ *                         format: date-time
  *                 page:
  *                   type: integer
- *                   example: 1
  *                 size:
  *                   type: integer
- *                   example: 10
  *                 totalElements:
  *                   type: integer
- *                   example: 100
  *                 totalPages:
  *                   type: integer
- *                   example: 10
- *                 categoria_id:
- *                   type: integer
- *                   nullable: true
  *                 buscar:
  *                   type: string
  *                   nullable: true
  *       401:
  *         description: No autorizado
  *       403:
- *         description: No tiene permiso para ver productos
+ *         description: No tiene permiso para ver categorías
  *       500:
  *         description: Error del servidor
  */
 
 /**
  * @swagger
- * /api/productos:
+ * /api/categorias:
  *   post:
- *     summary: Crear un nuevo producto
- *     tags: [Productos]
- *     description: Crea un nuevo producto. Requiere rol de admin o inventario.
+ *     summary: Crear una nueva categoría
+ *     tags: [Categorías]
+ *     description: Crea una nueva categoría. Requiere rol de admin o inventario.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -112,32 +96,18 @@
  *             type: object
  *             required:
  *               - nombre
- *               - precio
- *               - stock
  *             properties:
  *               nombre:
  *                 type: string
  *                 minLength: 1
  *                 maxLength: 100
- *                 description: Nombre del producto (máximo 100 caracteres)
- *               precio:
- *                 type: number
- *                 minimum: 0.01
- *                 description: Precio del producto (debe ser mayor a 0)
- *               stock:
- *                 type: integer
- *                 minimum: 0
- *                 description: Cantidad en inventario (debe ser 0 o mayor)
- *               con_itbis:
- *                 type: boolean
- *                 default: false
- *                 description: Indica si el producto tiene ITBIS
- *               categoria_id:
- *                 type: integer
- *                 description: ID de la categoría del producto
+ *                 description: Nombre de la categoría (máximo 100 caracteres)
+ *               descripcion:
+ *                 type: string
+ *                 description: Descripción de la categoría
  *     responses:
  *       201:
- *         description: Producto creado exitosamente
+ *         description: Categoría creada exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -150,19 +120,18 @@
  *                       type: integer
  *                     nombre:
  *                       type: string
- *                     precio:
+ *                     descripcion:
  *                       type: string
- *                       format: float
- *                     stock:
- *                       type: integer
- *                     con_itbis:
- *                       type: boolean
- *                     categoria_id:
- *                       type: integer
  *                       nullable: true
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
  *                 mensaje:
  *                   type: string
- *                   example: "Producto creado exitosamente"
+ *                   example: "Categoría creada exitosamente"
  *       400:
  *         description: Error de validación
  *         content:
@@ -177,22 +146,22 @@
  *                   type: array
  *                   items:
  *                     type: string
- *                   example: ["El nombre es obligatorio", "El precio debe ser un número positivo"]
+ *                   example: ["El nombre es obligatorio", "Ya existe una categoría con este nombre"]
  *       401:
  *         description: No autorizado
  *       403:
- *         description: No tiene permiso para crear productos
+ *         description: No tiene permiso para crear categorías
  *       500:
  *         description: Error del servidor
  */
 
 /**
  * @swagger
- * /api/productos/{id}:
+ * /api/categorias/{id}:
  *   put:
- *     summary: Actualizar un producto existente
- *     tags: [Productos]
- *     description: Actualiza un producto existente. Requiere rol de admin o inventario.
+ *     summary: Actualizar una categoría existente
+ *     tags: [Categorías]
+ *     description: Actualiza una categoría existente. Requiere rol de admin o inventario.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -201,7 +170,7 @@
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID del producto a actualizar
+ *         description: ID de la categoría a actualizar
  *     requestBody:
  *       required: true
  *       content:
@@ -213,24 +182,13 @@
  *                 type: string
  *                 minLength: 1
  *                 maxLength: 100
- *                 description: Nombre del producto (máximo 100 caracteres)
- *               precio:
- *                 type: number
- *                 minimum: 0.01
- *                 description: Precio del producto (debe ser mayor a 0)
- *               stock:
- *                 type: integer
- *                 minimum: 0
- *                 description: Cantidad en inventario (debe ser 0 o mayor)
- *               con_itbis:
- *                 type: boolean
- *                 description: Indica si el producto tiene ITBIS
- *               categoria_id:
- *                 type: integer
- *                 description: ID de la categoría del producto
+ *                 description: Nombre de la categoría (máximo 100 caracteres)
+ *               descripcion:
+ *                 type: string
+ *                 description: Descripción de la categoría
  *     responses:
  *       200:
- *         description: Producto actualizado exitosamente
+ *         description: Categoría actualizada exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -243,19 +201,18 @@
  *                       type: integer
  *                     nombre:
  *                       type: string
- *                     precio:
+ *                     descripcion:
  *                       type: string
- *                       format: float
- *                     stock:
- *                       type: integer
- *                     con_itbis:
- *                       type: boolean
- *                     categoria_id:
- *                       type: integer
  *                       nullable: true
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
  *                 mensaje:
  *                   type: string
- *                   example: "Producto actualizado exitosamente"
+ *                   example: "Categoría actualizada exitosamente"
  *       400:
  *         description: Error de validación
  *         content:
@@ -270,19 +227,19 @@
  *                   type: array
  *                   items:
  *                     type: string
- *                   example: ["El precio debe ser un número positivo", "El stock debe ser un número entero no negativo"]
+ *                   example: ["El nombre es obligatorio", "Ya existe otra categoría con este nombre"]
  *       401:
  *         description: No autorizado
  *       403:
- *         description: No tiene permiso para actualizar productos
+ *         description: No tiene permiso para actualizar categorías
  *       404:
- *         description: Producto no encontrado
+ *         description: Categoría no encontrada
  *       500:
  *         description: Error del servidor
  *   delete:
- *     summary: Eliminar un producto
- *     tags: [Productos]
- *     description: Elimina un producto (soft delete). Requiere rol de admin.
+ *     summary: Eliminar una categoría
+ *     tags: [Categorías]
+ *     description: Elimina una categoría. Requiere rol de admin.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -291,10 +248,10 @@
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID del producto a eliminar
+ *         description: ID de la categoría a eliminar
  *     responses:
  *       200:
- *         description: Producto eliminado exitosamente
+ *         description: Categoría eliminada exitosamente
  *         content:
  *           application/json:
  *             schema:
@@ -307,19 +264,18 @@
  *                       type: integer
  *                     nombre:
  *                       type: string
- *                     precio:
+ *                     descripcion:
  *                       type: string
- *                       format: float
- *                     stock:
- *                       type: integer
- *                     con_itbis:
- *                       type: boolean
- *                     categoria_id:
- *                       type: integer
  *                       nullable: true
+ *                     created_at:
+ *                       type: string
+ *                       format: date-time
+ *                     updated_at:
+ *                       type: string
+ *                       format: date-time
  *                 mensaje:
  *                   type: string
- *                   example: "Producto eliminado exitosamente"
+ *                   example: "Categoría eliminada exitosamente"
  *       400:
  *         description: Error de validación
  *         content:
@@ -334,13 +290,13 @@
  *                   type: array
  *                   items:
  *                     type: string
- *                   example: ["ID de producto inválido"]
+ *                   example: ["No se puede eliminar la categoría porque tiene productos asociados"]
  *       401:
  *         description: No autorizado
  *       403:
- *         description: No tiene permiso para eliminar productos
+ *         description: No tiene permiso para eliminar categorías
  *       404:
- *         description: Producto no encontrado
+ *         description: Categoría no encontrada
  *       500:
  *         description: Error del servidor
- */
+ */ 

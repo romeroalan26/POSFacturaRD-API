@@ -38,14 +38,82 @@ const validarProducto = (producto, esActualizacion = false) => {
     }
   }
 
+  // Validar categoria_id si se proporciona
+  if (producto.categoria_id !== undefined && producto.categoria_id !== null) {
+    if (!Number.isInteger(Number(producto.categoria_id))) {
+      errores.push('El ID de categoría debe ser un número entero');
+    }
+  }
+
   return errores;
+};
+
+const getPagination = (req) => {
+  const page = parseInt(req.query.page) > 0 ? parseInt(req.query.page) : 1;
+  const size = parseInt(req.query.size) > 0 ? parseInt(req.query.size) : 10;
+  const offset = (page - 1) * size;
+  return { page, size, offset };
 };
 
 // Obtener productos
 const obtenerProductos = async (req, res) => {
   try {
-    const resultado = await db.query('SELECT * FROM productos ORDER BY id');
-    res.json(resultado.rows);
+    const { categoria_id, buscar } = req.query;
+    const { page, size, offset } = getPagination(req);
+
+    // Construir la consulta base
+    let query = `
+      SELECT p.*, c.nombre as categoria_nombre 
+      FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
+    `;
+    const queryParams = [];
+    const whereConditions = [];
+
+    // Agregar filtros si existen
+    if (categoria_id) {
+      whereConditions.push(`p.categoria_id = $${queryParams.length + 1}`);
+      queryParams.push(categoria_id);
+    }
+
+    if (buscar) {
+      whereConditions.push(`p.nombre ILIKE $${queryParams.length + 1}`);
+      queryParams.push(`%${buscar}%`);
+    }
+
+    // Agregar condiciones WHERE si existen
+    if (whereConditions.length > 0) {
+      query += ' WHERE ' + whereConditions.join(' AND ');
+    }
+
+    // Agregar ordenamiento y paginación
+    query += ' ORDER BY p.id';
+    query += ` OFFSET $${queryParams.length + 1} LIMIT $${queryParams.length + 2}`;
+    queryParams.push(offset, size);
+
+    // Consulta para contar el total de elementos
+    let countQuery = 'SELECT COUNT(*) FROM productos p';
+    if (whereConditions.length > 0) {
+      countQuery += ' WHERE ' + whereConditions.join(' AND ');
+    }
+
+    const [resultado, countResult] = await Promise.all([
+      db.query(query, queryParams),
+      db.query(countQuery, queryParams.slice(0, queryParams.length - 2))
+    ]);
+
+    const totalElements = parseInt(countResult.rows[0]?.count || 0);
+    const totalPages = Math.ceil(totalElements / size);
+
+    res.json({
+      data: resultado.rows,
+      page,
+      size,
+      totalElements,
+      totalPages,
+      categoria_id: categoria_id || null,
+      buscar: buscar || null
+    });
   } catch (error) {
     console.error('Error al obtener productos:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });
@@ -54,10 +122,10 @@ const obtenerProductos = async (req, res) => {
 
 // Insertar producto
 const crearProducto = async (req, res) => {
-  const { nombre, precio, stock, con_itbis, categoria } = req.body;
+  const { nombre, precio, stock, con_itbis, categoria_id } = req.body;
 
   // Validar campos obligatorios
-  const errores = validarProducto({ nombre, precio, stock, con_itbis });
+  const errores = validarProducto({ nombre, precio, stock, con_itbis, categoria_id });
   if (errores.length > 0) {
     return res.status(400).json({ mensaje: 'Error de validación', errores });
   }
@@ -76,8 +144,23 @@ const crearProducto = async (req, res) => {
       });
     }
 
+    // Verificar si la categoría existe
+    if (categoria_id) {
+      const categoriaExistente = await db.query(
+        'SELECT id FROM categorias WHERE id = $1',
+        [categoria_id]
+      );
+
+      if (categoriaExistente.rows.length === 0) {
+        return res.status(400).json({
+          mensaje: 'Error de validación',
+          errores: ['La categoría especificada no existe']
+        });
+      }
+    }
+
     const query = `
-      INSERT INTO productos (nombre, precio, stock, con_itbis, categoria)
+      INSERT INTO productos (nombre, precio, stock, con_itbis, categoria_id)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
@@ -90,11 +173,14 @@ const crearProducto = async (req, res) => {
       precio,
       stock,
       conItbisBoolean,
-      categoria || null
+      categoria_id || null
     ];
 
     const resultado = await db.query(query, values);
-    res.status(201).json(resultado.rows[0]);
+    res.status(201).json({
+      data: resultado.rows[0],
+      mensaje: 'Producto creado exitosamente'
+    });
   } catch (error) {
     console.error('Error al crear producto:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });
@@ -104,7 +190,7 @@ const crearProducto = async (req, res) => {
 // Actualizar un producto
 const actualizarProducto = async (req, res) => {
   const { id } = req.params;
-  const { nombre, precio, stock, con_itbis, categoria } = req.body;
+  const { nombre, precio, stock, con_itbis, categoria_id } = req.body;
 
   // Validar ID
   if (!Number.isInteger(Number(id))) {
@@ -115,7 +201,7 @@ const actualizarProducto = async (req, res) => {
   }
 
   // Validar campos (pasando true para indicar que es una actualización)
-  const errores = validarProducto({ nombre, precio, stock, con_itbis }, true);
+  const errores = validarProducto({ nombre, precio, stock, con_itbis, categoria_id }, true);
   if (errores.length > 0) {
     return res.status(400).json({ mensaje: 'Error de validación', errores });
   }
@@ -129,6 +215,21 @@ const actualizarProducto = async (req, res) => {
 
     if (productoExistente.rows.length === 0) {
       return res.status(404).json({ mensaje: 'Producto no encontrado' });
+    }
+
+    // Verificar si la categoría existe
+    if (categoria_id) {
+      const categoriaExistente = await db.query(
+        'SELECT id FROM categorias WHERE id = $1',
+        [categoria_id]
+      );
+
+      if (categoriaExistente.rows.length === 0) {
+        return res.status(400).json({
+          mensaje: 'Error de validación',
+          errores: ['La categoría especificada no existe']
+        });
+      }
     }
 
     // Solo verificar nombre duplicado si se está actualizando el nombre
@@ -175,9 +276,9 @@ const actualizarProducto = async (req, res) => {
       paramIndex++;
     }
 
-    if (categoria !== undefined) {
-      updates.push(`categoria = $${paramIndex}`);
-      values.push(categoria);
+    if (categoria_id !== undefined) {
+      updates.push(`categoria_id = $${paramIndex}`);
+      values.push(categoria_id);
       paramIndex++;
     }
 
@@ -197,7 +298,10 @@ const actualizarProducto = async (req, res) => {
     `;
 
     const resultado = await db.query(query, values);
-    res.json(resultado.rows[0]);
+    res.json({
+      data: resultado.rows[0],
+      mensaje: 'Producto actualizado exitosamente'
+    });
   } catch (error) {
     console.error('Error al actualizar producto:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });
@@ -245,7 +349,10 @@ const eliminarProducto = async (req, res) => {
       [id]
     );
 
-    res.json({ mensaje: 'Producto eliminado', producto: resultado.rows[0] });
+    res.json({
+      data: resultado.rows[0],
+      mensaje: 'Producto eliminado exitosamente'
+    });
   } catch (error) {
     console.error('Error al eliminar producto:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });
@@ -256,5 +363,5 @@ module.exports = {
   obtenerProductos,
   crearProducto,
   actualizarProducto,
-  eliminarProducto,
+  eliminarProducto
 };

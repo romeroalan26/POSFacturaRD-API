@@ -32,6 +32,13 @@ const validarVenta = (venta) => {
   return errores;
 };
 
+const getPagination = (req) => {
+  const page = parseInt(req.query.page) > 0 ? parseInt(req.query.page) : 1;
+  const size = parseInt(req.query.size) > 0 ? parseInt(req.query.size) : 10;
+  const offset = (page - 1) * size;
+  return { page, size, offset };
+};
+
 const registrarVenta = async (req, res) => {
   const { productos, metodo_pago } = req.body;
 
@@ -108,7 +115,7 @@ const registrarVenta = async (req, res) => {
     const total_final = parseFloat((subtotal + itbis_total).toFixed(2));
 
     const ventaRes = await client.query(
-      'INSERT INTO ventas (subtotal, itbis_total, total_final, metodo_pago) VALUES ($1, $2, $3, $4) RETURNING id',
+      'INSERT INTO ventas (subtotal, itbis_total, total_final, metodo_pago) VALUES ($1, $2, $3, $4) RETURNING *',
       [subtotal, itbis_total, total_final, metodo_pago.toLowerCase()]
     );
 
@@ -128,13 +135,26 @@ const registrarVenta = async (req, res) => {
 
     await client.query('COMMIT');
 
+    // Obtener la venta completa con sus productos
+    const ventaCompleta = await client.query(
+      `SELECT v.*, 
+        json_agg(
+          json_build_object(
+            'producto_id', vp.producto_id,
+            'cantidad', vp.cantidad,
+            'precio_unitario', vp.precio_unitario
+          )
+        ) AS productos
+      FROM ventas v
+      LEFT JOIN venta_productos vp ON v.id = vp.venta_id
+      WHERE v.id = $1
+      GROUP BY v.id`,
+      [ventaId]
+    );
+
     res.status(201).json({
-      mensaje: 'Venta registrada',
-      venta_id: ventaId,
-      subtotal,
-      itbis_total,
-      total_final,
-      itbis_rate: ITBIS_RATE
+      data: ventaCompleta.rows[0],
+      mensaje: 'Venta registrada exitosamente'
     });
 
   } catch (error) {
@@ -158,12 +178,7 @@ const registrarVenta = async (req, res) => {
         errores: ['Tipo de dato inválido en uno de los campos']
       });
     } else {
-      // Para otros errores, enviar un mensaje más descriptivo
-      res.status(500).json({
-        mensaje: 'Error del servidor',
-        detalle: error.message,
-        codigo: error.code
-      });
+      res.status(500).json({ mensaje: 'Error del servidor' });
     }
   } finally {
     client.release();
@@ -172,14 +187,12 @@ const registrarVenta = async (req, res) => {
 
 const obtenerVentas = async (req, res) => {
   try {
-    // Obtener parámetros de paginación y filtros
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
+    const { fecha_inicio, fecha_fin, metodo_pago } = req.query;
+    const { page, size, offset } = getPagination(req);
 
     // Construir la consulta base
     let query = `
-      SELECT v.id, v.fecha, v.total, v.metodo_pago,
+      SELECT v.*, 
         json_agg(
           json_build_object(
             'producto_id', vp.producto_id,
@@ -196,21 +209,21 @@ const obtenerVentas = async (req, res) => {
     const queryParams = [];
     let paramIndex = 1;
 
-    if (req.query.fecha_inicio) {
+    if (fecha_inicio) {
       whereConditions.push(`v.fecha >= $${paramIndex}`);
-      queryParams.push(req.query.fecha_inicio);
+      queryParams.push(fecha_inicio);
       paramIndex++;
     }
 
-    if (req.query.fecha_fin) {
+    if (fecha_fin) {
       whereConditions.push(`v.fecha <= $${paramIndex}`);
-      queryParams.push(req.query.fecha_fin);
+      queryParams.push(fecha_fin);
       paramIndex++;
     }
 
-    if (req.query.metodo_pago) {
+    if (metodo_pago) {
       whereConditions.push(`v.metodo_pago = $${paramIndex}`);
-      queryParams.push(req.query.metodo_pago.toLowerCase());
+      queryParams.push(metodo_pago.toLowerCase());
       paramIndex++;
     }
 
@@ -223,7 +236,7 @@ const obtenerVentas = async (req, res) => {
 
     // Agregar paginación
     query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    queryParams.push(limit, offset);
+    queryParams.push(size, offset);
 
     const resultado = await db.query(query, queryParams);
 
@@ -234,16 +247,18 @@ const obtenerVentas = async (req, res) => {
       ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
     `;
     const totalResult = await db.query(countQuery, queryParams.slice(0, -2));
-    const total = parseInt(totalResult.rows[0].count);
+    const totalElements = parseInt(totalResult.rows[0].count);
+    const totalPages = Math.ceil(totalElements / size);
 
     res.json({
-      ventas: resultado.rows,
-      paginacion: {
-        total,
-        pagina_actual: page,
-        total_paginas: Math.ceil(total / limit),
-        registros_por_pagina: limit
-      }
+      data: resultado.rows,
+      page,
+      size,
+      totalElements,
+      totalPages,
+      fecha_inicio: fecha_inicio || null,
+      fecha_fin: fecha_fin || null,
+      metodo_pago: metodo_pago || null
     });
   } catch (error) {
     console.error('Error al obtener ventas:', error);
@@ -253,5 +268,5 @@ const obtenerVentas = async (req, res) => {
 
 module.exports = {
   registrarVenta,
-  obtenerVentas,
+  obtenerVentas
 };

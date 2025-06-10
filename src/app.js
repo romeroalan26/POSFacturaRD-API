@@ -10,6 +10,7 @@ const productosRoutes = require('./routes/productos');
 const ventasRoutes = require('./routes/ventas');
 const reportesRoutes = require('./routes/reportes');
 const userRoutes = require('./routes/userRoutes');
+const categoriasRoutes = require('./routes/categorias');
 
 const app = express();
 
@@ -45,11 +46,12 @@ const swaggerUiOptions = {
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
 // Rutas
-app.use('/auth', authRoutes);
-app.use('/productos', productosRoutes);
-app.use('/ventas', ventasRoutes);
-app.use('/reportes', reportesRoutes);
-app.use('/usuarios', userRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/productos', productosRoutes);
+app.use('/api/ventas', ventasRoutes);
+app.use('/api/reportes', reportesRoutes);
+app.use('/api/usuarios', userRoutes);
+app.use('/api/categorias', categoriasRoutes);
 
 // Ruta de prueba
 app.get('/', (req, res) => {

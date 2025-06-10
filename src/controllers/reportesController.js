@@ -20,9 +20,17 @@ const validarFechas = (fechaInicio, fechaFin) => {
   return errores;
 };
 
+const getPagination = (req) => {
+  const page = parseInt(req.query.page) > 0 ? parseInt(req.query.page) : 1;
+  const size = parseInt(req.query.size) > 0 ? parseInt(req.query.size) : 10;
+  const offset = (page - 1) * size;
+  return { page, size, offset };
+};
+
 const obtenerVentasDiarias = async (req, res) => {
   try {
     const { fecha_inicio, fecha_fin } = req.query;
+    const { page, size, offset } = getPagination(req);
 
     // Validar fechas
     const errores = validarFechas(fecha_inicio, fecha_fin);
@@ -30,39 +38,62 @@ const obtenerVentasDiarias = async (req, res) => {
       return res.status(400).json({ mensaje: 'Error de validación', errores });
     }
 
-    // Construir la consulta
+    // Construir la consulta principal
     let query = `
       SELECT
         TO_CHAR(fecha, 'YYYY-MM-DD') AS dia,
         COUNT(*) AS total_ventas,
-        SUM(total)::numeric(10,2) AS total_monto
+        SUM(total_final)::numeric(10,2) AS total_monto
       FROM ventas
     `;
-
     const queryParams = [];
     const whereConditions = [];
 
     if (fecha_inicio) {
-      whereConditions.push(`fecha >= $1`);
+      whereConditions.push(`fecha >= $${queryParams.length + 1}`);
       queryParams.push(fecha_inicio);
     }
-
     if (fecha_fin) {
       whereConditions.push(`fecha <= $${queryParams.length + 1}`);
       queryParams.push(fecha_fin);
     }
-
     if (whereConditions.length > 0) {
       query += ' WHERE ' + whereConditions.join(' AND ');
     }
-
     query += `
       GROUP BY TO_CHAR(fecha, 'YYYY-MM-DD')
       ORDER BY dia DESC
+      OFFSET $${queryParams.length + 1} LIMIT $${queryParams.length + 2}
     `;
+    queryParams.push(offset, size);
 
-    const resultado = await db.query(query, queryParams);
-    res.json(resultado.rows);
+    // Consulta para contar el total de elementos
+    let countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM ventas`;
+    if (whereConditions.length > 0) {
+      countQuery += ' WHERE ' + whereConditions.join(' AND ');
+    }
+    countQuery += ` GROUP BY TO_CHAR(fecha, 'YYYY-MM-DD')) AS sub`;
+
+    const [resultado, countResult] = await Promise.all([
+      db.query(query, queryParams),
+      db.query(countQuery, queryParams.slice(0, queryParams.length - 2))
+    ]);
+    const totalElements = parseInt(countResult.rows[0]?.count || 0);
+    const totalPages = Math.ceil(totalElements / size);
+
+    // Agregar log para depuración
+    console.log('Query params:', queryParams);
+    console.log('Resultado:', resultado.rows);
+
+    res.json({
+      data: resultado.rows,
+      page,
+      size,
+      totalElements,
+      totalPages,
+      fecha_inicio: fecha_inicio || null,
+      fecha_fin: fecha_fin || null
+    });
   } catch (error) {
     console.error('Error al obtener reporte diario:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });
@@ -71,7 +102,8 @@ const obtenerVentasDiarias = async (req, res) => {
 
 const obtenerProductosMasVendidos = async (req, res) => {
   try {
-    const { fecha_inicio, fecha_fin, limite = 10 } = req.query;
+    const { fecha_inicio, fecha_fin, categoria } = req.query;
+    const { page, size, offset } = getPagination(req);
 
     // Validar fechas
     const errores = validarFechas(fecha_inicio, fecha_fin);
@@ -79,53 +111,80 @@ const obtenerProductosMasVendidos = async (req, res) => {
       return res.status(400).json({ mensaje: 'Error de validación', errores });
     }
 
-    // Validar límite
-    const limiteNum = parseInt(limite);
-    if (isNaN(limiteNum) || limiteNum <= 0) {
-      return res.status(400).json({
-        mensaje: 'Error de validación',
-        errores: ['El límite debe ser un número positivo']
-      });
-    }
-
-    // Construir la consulta
+    // Construir la consulta principal
     let query = `
       SELECT
         p.id,
         p.nombre,
+        c.nombre as categoria,
         SUM(vp.cantidad) AS total_vendido,
-        SUM(vp.cantidad * vp.precio_unitario)::numeric(10,2) AS total_ingresos
+        SUM(v.total_final * (vp.cantidad::float / (
+          SELECT SUM(cantidad) 
+          FROM venta_productos 
+          WHERE venta_id = v.id
+        )))::numeric(10,2) AS total_ingresos,
+        COUNT(DISTINCT v.id) as total_ventas
       FROM productos p
+      LEFT JOIN categorias c ON p.categoria_id = c.id
       JOIN venta_productos vp ON p.id = vp.producto_id
       JOIN ventas v ON vp.venta_id = v.id
     `;
-
     const queryParams = [];
     const whereConditions = [];
 
     if (fecha_inicio) {
-      whereConditions.push(`v.fecha >= $1`);
+      whereConditions.push(`v.fecha >= $${queryParams.length + 1}`);
       queryParams.push(fecha_inicio);
     }
-
     if (fecha_fin) {
       whereConditions.push(`v.fecha <= $${queryParams.length + 1}`);
       queryParams.push(fecha_fin);
     }
-
+    if (categoria) {
+      whereConditions.push(`c.nombre = $${queryParams.length + 1}`);
+      queryParams.push(categoria);
+    }
     if (whereConditions.length > 0) {
       query += ' WHERE ' + whereConditions.join(' AND ');
     }
-
     query += `
-      GROUP BY p.id, p.nombre
+      GROUP BY p.id, p.nombre, c.nombre
       ORDER BY total_vendido DESC
-      LIMIT $${queryParams.length + 1}
+      OFFSET $${queryParams.length + 1} LIMIT $${queryParams.length + 2}
     `;
-    queryParams.push(limiteNum);
+    queryParams.push(offset, size);
 
-    const resultado = await db.query(query, queryParams);
-    res.json(resultado.rows);
+    // Consulta para contar el total de elementos
+    let countQuery = `
+      SELECT COUNT(*) FROM (
+        SELECT 1 
+        FROM productos p
+        LEFT JOIN categorias c ON p.categoria_id = c.id
+        JOIN venta_productos vp ON p.id = vp.producto_id
+        JOIN ventas v ON vp.venta_id = v.id
+    `;
+    if (whereConditions.length > 0) {
+      countQuery += ' WHERE ' + whereConditions.join(' AND ');
+    }
+    countQuery += ` GROUP BY p.id, p.nombre, c.nombre) AS sub`;
+
+    const [resultado, countResult] = await Promise.all([
+      db.query(query, queryParams),
+      db.query(countQuery, queryParams.slice(0, queryParams.length - 2))
+    ]);
+    const totalElements = parseInt(countResult.rows[0]?.count || 0);
+    const totalPages = Math.ceil(totalElements / size);
+
+    res.json({
+      data: resultado.rows,
+      page,
+      size,
+      totalElements,
+      totalPages,
+      fecha_inicio: fecha_inicio || null,
+      fecha_fin: fecha_fin || null,
+      categoria: categoria || null
+    });
   } catch (error) {
     console.error('Error al obtener productos más vendidos:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });
@@ -135,6 +194,7 @@ const obtenerProductosMasVendidos = async (req, res) => {
 const obtenerResumenPorMetodoPago = async (req, res) => {
   try {
     const { fecha_inicio, fecha_fin } = req.query;
+    const { page, size, offset } = getPagination(req);
 
     // Validar fechas
     const errores = validarFechas(fecha_inicio, fecha_fin);
@@ -142,41 +202,236 @@ const obtenerResumenPorMetodoPago = async (req, res) => {
       return res.status(400).json({ mensaje: 'Error de validación', errores });
     }
 
-    // Construir la consulta
+    // Consulta principal
     let query = `
       SELECT
         metodo_pago,
         COUNT(*) AS total_ventas,
-        SUM(total)::numeric(10,2) AS total_monto
+        SUM(total_final)::numeric(10,2) AS total_monto,
+        AVG(total_final)::numeric(10,2) AS promedio_venta,
+        MIN(total_final)::numeric(10,2) AS venta_minima,
+        MAX(total_final)::numeric(10,2) AS venta_maxima
       FROM ventas
     `;
-
     const queryParams = [];
     const whereConditions = [];
 
     if (fecha_inicio) {
-      whereConditions.push(`fecha >= $1`);
+      whereConditions.push(`fecha >= $${queryParams.length + 1}`);
       queryParams.push(fecha_inicio);
     }
-
     if (fecha_fin) {
       whereConditions.push(`fecha <= $${queryParams.length + 1}`);
       queryParams.push(fecha_fin);
     }
-
     if (whereConditions.length > 0) {
       query += ' WHERE ' + whereConditions.join(' AND ');
     }
-
     query += `
       GROUP BY metodo_pago
       ORDER BY total_monto DESC
+      OFFSET $${queryParams.length + 1} LIMIT $${queryParams.length + 2}
     `;
+    queryParams.push(offset, size);
 
-    const resultado = await db.query(query, queryParams);
-    res.json(resultado.rows);
+    // Consulta para contar el total de elementos
+    let countQuery = `SELECT COUNT(*) FROM (SELECT 1 FROM ventas`;
+    if (whereConditions.length > 0) {
+      countQuery += ' WHERE ' + whereConditions.join(' AND ');
+    }
+    countQuery += ` GROUP BY metodo_pago) AS sub`;
+
+    const [resultado, countResult] = await Promise.all([
+      db.query(query, queryParams),
+      db.query(countQuery, queryParams.slice(0, queryParams.length - 2))
+    ]);
+    const totalElements = parseInt(countResult.rows[0]?.count || 0);
+    const totalPages = Math.ceil(totalElements / size);
+
+    res.json({
+      data: resultado.rows,
+      page,
+      size,
+      totalElements,
+      totalPages,
+      fecha_inicio: fecha_inicio || null,
+      fecha_fin: fecha_fin || null
+    });
   } catch (error) {
     console.error('Error al obtener resumen por método de pago:', error);
+    res.status(500).json({ mensaje: 'Error del servidor' });
+  }
+};
+
+const obtenerResumenGeneral = async (req, res) => {
+  try {
+    const { fecha_inicio, fecha_fin } = req.query;
+    const errores = validarFechas(fecha_inicio, fecha_fin);
+    if (errores.length > 0) {
+      return res.status(400).json({ mensaje: 'Error de validación', errores });
+    }
+
+    let query = `
+      SELECT
+        COUNT(*) as total_ventas,
+        SUM(total_final)::numeric(10,2) as total_ingresos,
+        AVG(total_final)::numeric(10,2) as promedio_venta,
+        COUNT(DISTINCT DATE(fecha)) as dias_con_ventas,
+        (
+          SELECT COUNT(*) 
+          FROM venta_productos vp 
+          JOIN ventas v ON vp.venta_id = v.id
+          WHERE ($1::date IS NULL OR v.fecha >= $1)
+          AND ($2::date IS NULL OR v.fecha <= $2)
+        ) as total_productos_vendidos
+      FROM ventas
+      WHERE ($1::date IS NULL OR fecha >= $1)
+      AND ($2::date IS NULL OR fecha <= $2)
+    `;
+
+    const resultado = await db.query(query, [fecha_inicio, fecha_fin]);
+
+    res.json({
+      data: resultado.rows[0],
+      fecha_inicio: fecha_inicio || null,
+      fecha_fin: fecha_fin || null
+    });
+  } catch (error) {
+    console.error('Error al obtener resumen general:', error);
+    res.status(500).json({ mensaje: 'Error del servidor' });
+  }
+};
+
+const obtenerVentasPorHora = async (req, res) => {
+  try {
+    const { fecha_inicio, fecha_fin } = req.query;
+    const errores = validarFechas(fecha_inicio, fecha_fin);
+    if (errores.length > 0) {
+      return res.status(400).json({ mensaje: 'Error de validación', errores });
+    }
+
+    let query = `
+      SELECT
+        EXTRACT(HOUR FROM fecha) as hora,
+        COUNT(*) as total_ventas,
+        SUM(total_final)::numeric(10,2) as total_monto
+      FROM ventas
+      WHERE ($1::date IS NULL OR fecha >= $1)
+      AND ($2::date IS NULL OR fecha <= $2)
+      GROUP BY EXTRACT(HOUR FROM fecha)
+      ORDER BY hora
+    `;
+
+    const resultado = await db.query(query, [fecha_inicio, fecha_fin]);
+
+    res.json({
+      data: resultado.rows,
+      fecha_inicio: fecha_inicio || null,
+      fecha_fin: fecha_fin || null
+    });
+  } catch (error) {
+    console.error('Error al obtener ventas por hora:', error);
+    res.status(500).json({ mensaje: 'Error del servidor' });
+  }
+};
+
+const obtenerTendenciaVentas = async (req, res) => {
+  try {
+    const { fecha_inicio, fecha_fin, intervalo = 'dia' } = req.query;
+    const errores = validarFechas(fecha_inicio, fecha_fin);
+    if (errores.length > 0) {
+      return res.status(400).json({ mensaje: 'Error de validación', errores });
+    }
+
+    let formatoFecha;
+    switch (intervalo) {
+      case 'hora':
+        formatoFecha = 'YYYY-MM-DD HH24:00';
+        break;
+      case 'semana':
+        formatoFecha = 'IYYY-IW';
+        break;
+      case 'mes':
+        formatoFecha = 'YYYY-MM';
+        break;
+      default:
+        formatoFecha = 'YYYY-MM-DD';
+    }
+
+    let query = `
+      SELECT
+        TO_CHAR(fecha, $3) as periodo,
+        COUNT(*) as total_ventas,
+        SUM(total_final)::numeric(10,2) as total_monto,
+        AVG(total_final)::numeric(10,2) as promedio_venta
+      FROM ventas
+      WHERE ($1::date IS NULL OR fecha >= $1)
+      AND ($2::date IS NULL OR fecha <= $2)
+      GROUP BY TO_CHAR(fecha, $3)
+      ORDER BY periodo
+    `;
+
+    const resultado = await db.query(query, [fecha_inicio, fecha_fin, formatoFecha]);
+
+    res.json({
+      data: resultado.rows,
+      fecha_inicio: fecha_inicio || null,
+      fecha_fin: fecha_fin || null,
+      intervalo
+    });
+  } catch (error) {
+    console.error('Error al obtener tendencia de ventas:', error);
+    res.status(500).json({ mensaje: 'Error del servidor' });
+  }
+};
+
+const obtenerProductosBajoStock = async (req, res) => {
+  try {
+    const { limite_stock = 10 } = req.query;
+    const { page, size, offset } = getPagination(req);
+
+    let query = `
+      SELECT
+        p.id,
+        p.nombre,
+        p.stock,
+        p.precio,
+        COALESCE(SUM(vp.cantidad), 0) as total_vendido_mes
+      FROM productos p
+      LEFT JOIN venta_productos vp ON p.id = vp.producto_id
+      LEFT JOIN ventas v ON vp.venta_id = v.id
+        AND v.fecha >= CURRENT_DATE - INTERVAL '30 days'
+      WHERE p.stock <= $1
+      GROUP BY p.id, p.nombre, p.stock, p.precio
+      ORDER BY p.stock ASC
+      OFFSET $2 LIMIT $3
+    `;
+
+    // Consulta para contar el total de elementos
+    const countQuery = `
+      SELECT COUNT(*) 
+      FROM productos 
+      WHERE stock <= $1
+    `;
+
+    const [resultado, countResult] = await Promise.all([
+      db.query(query, [limite_stock, offset, size]),
+      db.query(countQuery, [limite_stock])
+    ]);
+
+    const totalElements = parseInt(countResult.rows[0].count);
+    const totalPages = Math.ceil(totalElements / size);
+
+    res.json({
+      data: resultado.rows,
+      page,
+      size,
+      totalElements,
+      totalPages,
+      limite_stock
+    });
+  } catch (error) {
+    console.error('Error al obtener productos con bajo stock:', error);
     res.status(500).json({ mensaje: 'Error del servidor' });
   }
 };
@@ -185,4 +440,8 @@ module.exports = {
   obtenerVentasDiarias,
   obtenerProductosMasVendidos,
   obtenerResumenPorMetodoPago,
+  obtenerResumenGeneral,
+  obtenerVentasPorHora,
+  obtenerTendenciaVentas,
+  obtenerProductosBajoStock
 };
