@@ -45,7 +45,9 @@ const registrarVenta = async (req, res) => {
   // Validar datos de entrada
   const errores = validarVenta({ productos, metodo_pago });
   if (errores.length > 0) {
-    return res.status(400).json({ mensaje: 'Error de validación', errores });
+    const mensaje = Array.isArray(errores) && errores.length > 0 ? errores[0] : 'Error de validación';
+    console.error('Error de validación en venta:', errores);
+    return res.status(400).json({ mensaje, errores });
   }
 
   const client = await db.pool.connect();
@@ -66,9 +68,11 @@ const registrarVenta = async (req, res) => {
 
       if (productoExistente.rows.length === 0) {
         await client.query('ROLLBACK');
+        const errorMsg = `El producto con ID ${prod.producto_id} no existe`;
+        console.error('Error de validación:', errorMsg);
         return res.status(400).json({
-          mensaje: 'Error de validación',
-          errores: [`El producto con ID ${prod.producto_id} no existe`]
+          mensaje: errorMsg,
+          errores: [errorMsg]
         });
       }
 
@@ -77,9 +81,11 @@ const registrarVenta = async (req, res) => {
       // Verificar stock
       if (producto.stock < prod.cantidad) {
         await client.query('ROLLBACK');
+        const errorMsg = `Stock insuficiente para el producto ${producto.nombre}. Stock disponible: ${producto.stock}, solicitado: ${prod.cantidad}`;
+        console.error('Error de validación:', errorMsg);
         return res.status(400).json({
-          mensaje: 'Error de validación',
-          errores: [`Stock insuficiente para el producto ${producto.nombre}. Stock disponible: ${producto.stock}`]
+          mensaje: errorMsg,
+          errores: [errorMsg]
         });
       }
 
@@ -93,11 +99,11 @@ const registrarVenta = async (req, res) => {
 
       if (diferenciaPrecio > tolerancia) {
         await client.query('ROLLBACK');
+        const errorMsg = `El precio del producto "${producto.nombre}" ha cambiado. Precio actual: ${precioActual.toFixed(2)}, Precio enviado: ${precioEnviado.toFixed(2)}`;
+        console.error('Error de validación:', errorMsg);
         return res.status(400).json({
-          mensaje: 'Error de validación',
-          errores: [
-            `El precio del producto "${producto.nombre}" ha cambiado. Precio actual: ${precioActual.toFixed(2)}, Precio enviado: ${precioEnviado.toFixed(2)}`
-          ]
+          mensaje: errorMsg,
+          errores: [errorMsg]
         });
       }
 
@@ -141,12 +147,14 @@ const registrarVenta = async (req, res) => {
         json_agg(
           json_build_object(
             'producto_id', vp.producto_id,
+            'nombre', p.nombre,
             'cantidad', vp.cantidad,
             'precio_unitario', vp.precio_unitario
           )
         ) AS productos
       FROM ventas v
       LEFT JOIN venta_productos vp ON v.id = vp.venta_id
+      LEFT JOIN productos p ON vp.producto_id = p.id
       WHERE v.id = $1
       GROUP BY v.id`,
       [ventaId]
@@ -196,12 +204,14 @@ const obtenerVentas = async (req, res) => {
         json_agg(
           json_build_object(
             'producto_id', vp.producto_id,
+            'nombre', p.nombre,
             'cantidad', vp.cantidad,
             'precio_unitario', vp.precio_unitario
           )
         ) AS productos
       FROM ventas v
       LEFT JOIN venta_productos vp ON v.id = vp.venta_id
+      LEFT JOIN productos p ON vp.producto_id = p.id
     `;
 
     // Agregar filtros si existen

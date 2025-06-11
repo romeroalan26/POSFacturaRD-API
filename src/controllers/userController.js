@@ -1,5 +1,6 @@
 const pool = require('../db');
 const { checkPermission } = require('../middleware/checkPermission');
+const bcrypt = require('bcryptjs');
 
 // Obtener todos los usuarios
 const getUsers = async (req, res) => {
@@ -83,8 +84,40 @@ const getUserPermissions = async (req, res) => {
     }
 };
 
+// Reiniciar contraseña de usuario
+const resetUserPassword = async (req, res) => {
+    const { userId } = req.params;
+    const { password } = req.body;
+
+    try {
+        // Verificar que el usuario existe
+        const userCheck = await pool.query('SELECT id FROM usuarios WHERE id = $1', [userId]);
+        if (userCheck.rows.length === 0) {
+            return res.status(404).json({ mensaje: 'Usuario no encontrado' });
+        }
+
+        // Encriptar la nueva contraseña
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Actualizar la contraseña
+        await pool.query(
+            'UPDATE usuarios SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [hashedPassword, userId]
+        );
+
+        res.json({
+            mensaje: 'Contraseña actualizada exitosamente'
+        });
+    } catch (error) {
+        console.error('Error al actualizar contraseña:', error);
+        res.status(500).json({ mensaje: 'Error al actualizar la contraseña del usuario' });
+    }
+};
+
 module.exports = {
     getUsers,
     updateUserRole,
-    getUserPermissions
+    getUserPermissions,
+    resetUserPassword
 }; 

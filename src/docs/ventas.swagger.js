@@ -113,11 +113,9 @@
  *       500:
  *         description: Error del servidor
  *   post:
- *     summary: Registrar una nueva venta
+ *     summary: Registrar una venta
  *     tags: [Ventas]
- *     description: Registra una nueva venta. Requiere rol de cajero o admin.
- *     security:
- *       - bearerAuth: []
+ *     description: Registra una nueva venta en el sistema POS.
  *     requestBody:
  *       required: true
  *       content:
@@ -132,19 +130,13 @@
  *                 type: array
  *                 items:
  *                   type: object
- *                   required:
- *                     - producto_id
- *                     - cantidad
- *                     - precio_unitario
  *                   properties:
  *                     producto_id:
  *                       type: integer
  *                     cantidad:
  *                       type: integer
- *                       minimum: 1
  *                     precio_unitario:
  *                       type: number
- *                       minimum: 0.01
  *               metodo_pago:
  *                 type: string
  *                 enum: [efectivo, tarjeta, transferencia]
@@ -158,32 +150,9 @@
  *               properties:
  *                 data:
  *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                     fecha:
- *                       type: string
- *                       format: date-time
- *                     total:
- *                       type: string
- *                       format: float
- *                     metodo_pago:
- *                       type: string
- *                       enum: [efectivo, tarjeta, transferencia]
- *                     productos:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           producto_id:
- *                             type: integer
- *                           cantidad:
- *                             type: integer
- *                           precio_unitario:
- *                             type: number
  *                 mensaje:
  *                   type: string
- *                   example: "Venta registrada exitosamente"
+ *                   example: Venta registrada exitosamente
  *       400:
  *         description: Error de validación
  *         content:
@@ -193,12 +162,12 @@
  *               properties:
  *                 mensaje:
  *                   type: string
- *                   example: "Error de validación"
+ *                   example: Stock insuficiente para el producto Presidente Jumbo. Stock disponible: 24, solicitado: 31
  *                 errores:
  *                   type: array
  *                   items:
  *                     type: string
- *                   example: ["El método de pago es obligatorio", "Debe enviar al menos un producto"]
+ *                   example: ["Stock insuficiente para el producto Presidente Jumbo. Stock disponible: 24, solicitado: 31"]
  *       401:
  *         description: No autorizado
  *       403:

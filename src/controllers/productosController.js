@@ -58,7 +58,7 @@ const getPagination = (req) => {
 // Obtener productos
 const obtenerProductos = async (req, res) => {
   try {
-    const { categoria_id, buscar } = req.query;
+    const { categoria_id, buscar, is_active } = req.query;
     const { page, size, offset } = getPagination(req);
 
     // Construir la consulta base
@@ -81,13 +81,18 @@ const obtenerProductos = async (req, res) => {
       queryParams.push(`%${buscar}%`);
     }
 
+    if (is_active !== undefined) {
+      whereConditions.push(`p.is_active = $${queryParams.length + 1}`);
+      queryParams.push(is_active === 'true' || is_active === true);
+    }
+
     // Agregar condiciones WHERE si existen
     if (whereConditions.length > 0) {
       query += ' WHERE ' + whereConditions.join(' AND ');
     }
 
     // Agregar ordenamiento y paginación
-    query += ' ORDER BY p.id';
+    query += ' ORDER BY p.is_active DESC, p.id';
     query += ` OFFSET $${queryParams.length + 1} LIMIT $${queryParams.length + 2}`;
     queryParams.push(offset, size);
 
@@ -122,7 +127,7 @@ const obtenerProductos = async (req, res) => {
 
 // Insertar producto
 const crearProducto = async (req, res) => {
-  const { nombre, precio, stock, con_itbis, categoria_id } = req.body;
+  const { nombre, precio, stock, con_itbis, categoria_id, imagen } = req.body;
 
   // Validar campos obligatorios
   const errores = validarProducto({ nombre, precio, stock, con_itbis, categoria_id });
@@ -160,9 +165,9 @@ const crearProducto = async (req, res) => {
     }
 
     const query = `
-      INSERT INTO productos (nombre, precio, stock, con_itbis, categoria_id)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *;
+      INSERT INTO productos (nombre, precio, stock, con_itbis, categoria_id, imagen)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *, (SELECT nombre FROM categorias WHERE id = $5) as categoria_nombre;
     `;
 
     // Convertir con_itbis a booleano explícitamente
@@ -173,7 +178,8 @@ const crearProducto = async (req, res) => {
       precio,
       stock,
       conItbisBoolean,
-      categoria_id || null
+      categoria_id || null,
+      imagen || null
     ];
 
     const resultado = await db.query(query, values);
@@ -190,7 +196,7 @@ const crearProducto = async (req, res) => {
 // Actualizar un producto
 const actualizarProducto = async (req, res) => {
   const { id } = req.params;
-  const { nombre, precio, stock, con_itbis, categoria_id } = req.body;
+  const { nombre, precio, stock, con_itbis, categoria_id, imagen, is_active } = req.body;
 
   // Validar ID
   if (!Number.isInteger(Number(id))) {
@@ -282,6 +288,18 @@ const actualizarProducto = async (req, res) => {
       paramIndex++;
     }
 
+    if (imagen !== undefined) {
+      updates.push(`imagen = $${paramIndex}`);
+      values.push(imagen);
+      paramIndex++;
+    }
+
+    if (is_active !== undefined) {
+      updates.push(`is_active = $${paramIndex}`);
+      values.push(is_active);
+      paramIndex++;
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({
         mensaje: 'Error de validación',
@@ -294,7 +312,7 @@ const actualizarProducto = async (req, res) => {
       UPDATE productos 
       SET ${updates.join(', ')}
       WHERE id = $${paramIndex}
-      RETURNING *
+      RETURNING *, (SELECT nombre FROM categorias WHERE id = categoria_id) as categoria_nombre;
     `;
 
     const resultado = await db.query(query, values);

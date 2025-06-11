@@ -215,4 +215,63 @@
  *                 mensaje:
  *                   type: string
  *                   example: "Error al obtener permisos del usuario"
+ */
+
+/**
+ * @swagger
+ * /api/usuarios/{userId}/reset-password:
+ *   put:
+ *     tags: [Usuarios]
+ *     summary: Reiniciar contraseña de usuario
+ *     description: Actualiza la contraseña de un usuario específico. Solo accesible por administradores.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario a actualizar
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - password
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 format: password
+ *                 description: Nueva contraseña del usuario
+ *                 example: "nuevaContraseña123"
+ *     responses:
+ *       200:
+ *         description: Contraseña actualizada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Contraseña actualizada exitosamente"
+ *       401:
+ *         description: No autorizado
+ *       403:
+ *         description: No tiene permiso para actualizar contraseñas
+ *       404:
+ *         description: Usuario no encontrado
+ *       500:
+ *         description: Error del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Error al actualizar la contraseña del usuario"
  */ 

@@ -11,7 +11,7 @@
  *   get:
  *     summary: Obtiene la lista de productos
  *     tags: [Productos]
- *     description: Retorna la lista de productos con paginación y filtros
+ *     description: Retorna la lista de productos con paginación y filtros. Los productos se ordenan por estado (activos primero) y luego por ID.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -39,6 +39,12 @@
  *         schema:
  *           type: string
  *         description: Buscar por nombre de producto
+ *       - in: query
+ *         name: is_active
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Filtrar por productos activos (true) o inactivos (false)
  *     responses:
  *       200:
  *         description: Lista de productos obtenida exitosamente
@@ -69,6 +75,13 @@
  *                       categoria_nombre:
  *                         type: string
  *                         nullable: true
+ *                       imagen:
+ *                         type: string
+ *                         nullable: true
+ *                         description: Nombre del archivo de la imagen del producto
+ *                       is_active:
+ *                         type: boolean
+ *                         description: Indica si el producto está activo o inactivo
  *                 page:
  *                   type: integer
  *                   example: 1
@@ -343,4 +356,51 @@
  *         description: Producto no encontrado
  *       500:
  *         description: Error del servidor
+ */
+
+/**
+ * @swagger
+ * /api/productos/upload-imagen:
+ *   post:
+ *     summary: Subir imagen de producto
+ *     tags: [Productos]
+ *     description: Sube una imagen para un producto y devuelve el nombre del archivo y la URL local.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               imagen:
+ *                 type: string
+ *                 format: binary
+ *                 description: Archivo de imagen a subir
+ *     responses:
+ *       200:
+ *         description: Imagen subida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: Imagen subida exitosamente
+ *                 nombre_archivo:
+ *                   type: string
+ *                   example: imagen-1717971234567-123456789.jpg
+ *                 url:
+ *                   type: string
+ *                   example: /api/imagenes/productos/imagen-1717971234567-123456789.jpg
+ *       400:
+ *         description: No se subió ninguna imagen
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: No se subió ninguna imagen
  */
