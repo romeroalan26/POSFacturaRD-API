@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { registrarVenta, obtenerVentas, obtenerVenta, eliminarVenta } = require('../controllers/ventasController');
+const { registrarVenta, obtenerVentas, obtenerVenta, eliminarVenta, exportarVentas } = require('../controllers/ventasController');
 const authMiddleware = require('../middleware/auth');
 const checkPermission = require('../middleware/checkPermission');
 
@@ -9,6 +9,9 @@ router.post('/', authMiddleware, checkPermission('sales', 'create'), registrarVe
 
 // Obtener ventas (todos los roles pueden ver)
 router.get('/', authMiddleware, checkPermission('sales', 'view'), obtenerVentas);
+
+// Exportar ventas a CSV
+router.get('/exportar', authMiddleware, checkPermission('sales', 'view'), exportarVentas);
 
 // Obtener una venta específica
 router.get('/:id', authMiddleware, checkPermission('sales', 'view'), obtenerVenta);

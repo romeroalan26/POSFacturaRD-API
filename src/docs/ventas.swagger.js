@@ -385,3 +385,44 @@
  *       500:
  *         description: Error del servidor
  */
+
+/**
+ * @swagger
+ * /api/ventas/exportar:
+ *   get:
+ *     summary: Exportar lista de ventas a CSV
+ *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: fecha_inicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio para filtrar ventas
+ *       - in: query
+ *         name: fecha_fin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin para filtrar ventas
+ *       - in: query
+ *         name: metodo_pago
+ *         schema:
+ *           type: string
+ *           enum: [efectivo, tarjeta, transferencia]
+ *         description: Filtrar por método de pago
+ *     responses:
+ *       200:
+ *         description: Archivo CSV con la lista de ventas
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *               example: "ID,Fecha,Usuario,Método de Pago,Subtotal,ITBIS,Total,Ganancia Total,Margen Promedio,Productos"
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
+ */

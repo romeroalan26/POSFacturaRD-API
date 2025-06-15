@@ -441,9 +441,154 @@ const eliminarVenta = async (req, res) => {
   }
 };
 
+const exportarVentas = async (req, res) => {
+  try {
+    const { fecha_inicio, fecha_fin, metodo_pago } = req.query;
+
+    let query = `
+      WITH venta_ganancias AS (
+        SELECT 
+          venta_id,
+          ROUND((precio_unitario - precio_compra) * cantidad, 2) as ganancia_total,
+          CASE 
+            WHEN precio_compra > 0 THEN ROUND(((precio_unitario - precio_compra) / precio_compra * 100), 2)
+            ELSE 0 
+          END as margen_ganancia
+        FROM venta_productos
+      )
+      SELECT 
+        v.id,
+        v.fecha,
+        v.total,
+        v.metodo_pago,
+        v.subtotal,
+        v.itbis_total,
+        v.total_final,
+        COALESCE(SUM(vg.ganancia_total), 0) as ganancia_total_venta,
+        ROUND(AVG(vg.margen_ganancia), 2) as margen_promedio,
+        u.nombre as usuario_nombre,
+        u.email as usuario_email
+      FROM ventas v
+      LEFT JOIN venta_ganancias vg ON v.id = vg.venta_id
+      LEFT JOIN usuarios u ON v.usuario_id = u.id
+    `;
+
+    const queryParams = [];
+    const conditions = [];
+
+    if (fecha_inicio) {
+      queryParams.push(fecha_inicio);
+      conditions.push(`v.fecha::date >= $${queryParams.length}::date AT TIME ZONE 'America/Santo_Domingo'`);
+    }
+
+    if (fecha_fin) {
+      queryParams.push(fecha_fin);
+      conditions.push(`v.fecha::date <= $${queryParams.length}::date AT TIME ZONE 'America/Santo_Domingo'`);
+    }
+
+    if (metodo_pago) {
+      queryParams.push(metodo_pago);
+      conditions.push(`v.metodo_pago = $${queryParams.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' GROUP BY v.id, u.id ORDER BY v.fecha DESC';
+
+    const { rows: ventas } = await db.query(query, queryParams);
+
+    // Obtener productos de cada venta
+    for (const venta of ventas) {
+      const { rows: productos } = await db.query(
+        `SELECT vp.*, 
+                p.nombre as nombre_producto,
+                ROUND((vp.precio_unitario - vp.precio_compra), 2) as ganancia_unitaria,
+                ROUND((vp.precio_unitario - vp.precio_compra) * vp.cantidad, 2) as ganancia_total,
+                CASE 
+                  WHEN vp.precio_compra > 0 THEN ROUND(((vp.precio_unitario - vp.precio_compra) / vp.precio_compra * 100), 2)
+                  ELSE 0 
+                END as margen_ganancia
+         FROM venta_productos vp
+         JOIN productos p ON p.id = vp.producto_id
+         WHERE vp.venta_id = $1`,
+        [venta.id]
+      );
+      venta.productos = productos;
+    }
+
+    // Función para formatear fecha a 'DD-MM-YYYY hh:mm:ss AM/PM'
+    function formatearFecha(fecha) {
+      if (!fecha) return '';
+      const d = new Date(fecha);
+      const pad = n => n.toString().padStart(2, '0');
+      let hours = d.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // el 0 debe ser 12
+      return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(hours)}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${ampm}`;
+    }
+
+    // Crear el contenido CSV
+    const headers = [
+      'ID',
+      'Fecha',
+      'Usuario',
+      'Metodo de Pago',
+      'Subtotal',
+      'ITBIS',
+      'Total',
+      'Ganancia Total',
+      'Margen Promedio',
+      'Productos',
+      'Total de Productos'
+    ];
+
+    const rows = ventas.map(venta => [
+      venta.id,
+      formatearFecha(venta.fecha),
+      venta.usuario_nombre,
+      venta.metodo_pago,
+      venta.subtotal,
+      venta.itbis_total,
+      venta.total_final,
+      venta.ganancia_total_venta,
+      venta.margen_promedio,
+      venta.productos.map(p => `${p.nombre_producto} (${p.cantidad})`).join('; '),
+      venta.productos.reduce((acc, p) => acc + Number(p.cantidad), 0)
+    ]);
+
+    // Agregar BOM para Excel y configurar codificación UTF-8
+    const BOM = '\uFEFF';
+    const csvContent = BOM + [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => {
+        // Escapar comillas dobles y asegurar que el valor esté entre comillas
+        const escapedCell = String(cell).replace(/"/g, '""');
+        return `"${escapedCell}"`;
+      }).join(','))
+    ].join('\n');
+
+    // Configurar headers para descarga
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=ventas.csv');
+
+    res.send(csvContent);
+
+  } catch (error) {
+    console.error('Error al exportar ventas:', error);
+    res.status(500).json({
+      mensaje: 'Error al exportar ventas',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   registrarVenta,
   obtenerVentas,
   obtenerVenta,
-  eliminarVenta
+  eliminarVenta,
+  exportarVentas
 };
