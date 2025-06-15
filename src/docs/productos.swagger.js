@@ -34,6 +34,9 @@
  *         stock:
  *           type: integer
  *           description: Cantidad disponible en inventario
+ *         stock_minimo:
+ *           type: integer
+ *           description: Cantidad mínima de stock que debe mantenerse. Si el stock actual es menor o igual a este valor, el producto se considera bajo en stock
  *         con_itbis:
  *           type: boolean
  *           description: Indica si el producto tiene ITBIS
@@ -66,6 +69,7 @@
  *         precio: "175.00"
  *         precio_compra: "140.00"
  *         stock: 100
+ *         stock_minimo: 10
  *         con_itbis: true
  *         categoria_id: 1
  *         imagen: "imagen-123456789.jpg"
@@ -100,6 +104,10 @@
  *           type: integer
  *           minimum: 0
  *           description: Cantidad disponible en inventario
+ *         stock_minimo:
+ *           type: integer
+ *           minimum: 0
+ *           description: Cantidad mínima de stock que debe mantenerse. Si el stock actual es menor o igual a este valor, el producto se considera bajo en stock
  *         con_itbis:
  *           type: boolean
  *           description: Indica si el producto tiene ITBIS
@@ -120,6 +128,7 @@
  *         precio: 175.00
  *         precio_compra: 140.00
  *         stock: 100
+ *         stock_minimo: 10
  *         con_itbis: true
  *         categoria_id: 1
  *         imagen: "imagen-123456789.jpg"
@@ -273,7 +282,7 @@
  *         description: Error del servidor
  * 
  *   put:
- *     summary: Actualizar un producto
+ *     summary: Actualiza un producto existente
  *     tags: [Productos]
  *     security:
  *       - bearerAuth: []
@@ -283,7 +292,7 @@
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID del producto
+ *         description: ID del producto a actualizar
  *     requestBody:
  *       required: true
  *       content:
@@ -302,7 +311,7 @@
  *                   $ref: '#/components/schemas/Producto'
  *                 mensaje:
  *                   type: string
- *                   example: "Producto actualizado exitosamente"
+ *                   example: Producto actualizado exitosamente
  *       400:
  *         description: Error de validación
  *         content:
@@ -312,18 +321,31 @@
  *               properties:
  *                 mensaje:
  *                   type: string
- *                   example: "Error de validación"
+ *                   example: Error de validación
  *                 errores:
  *                   type: array
  *                   items:
  *                     type: string
- *                   example: ["El nombre es obligatorio", "El precio debe ser un número positivo", "El precio de compra debe ser menor que el precio de venta"]
- *       401:
- *         description: No autorizado
  *       404:
  *         description: Producto no encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: Producto no encontrado
  *       500:
  *         description: Error del servidor
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: Error del servidor
  * 
  *   delete:
  *     summary: Eliminar un producto

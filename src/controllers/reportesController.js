@@ -123,6 +123,13 @@ const obtenerProductosMasVendidos = async (req, res) => {
           FROM venta_productos 
           WHERE venta_id = v.id
         )))::numeric(10,2) AS total_ingresos,
+        ROUND(SUM(vp.cantidad * (vp.precio_unitario - vp.precio_compra))::numeric, 2) as ganancia_total,
+        ROUND(AVG((vp.precio_unitario - vp.precio_compra))::numeric, 2) as ganancia_unitaria,
+        CASE 
+          WHEN SUM(vp.cantidad * vp.precio_compra) > 0 
+          THEN ROUND((SUM(vp.cantidad * (vp.precio_unitario - vp.precio_compra)) / SUM(vp.cantidad * vp.precio_compra) * 100)::numeric, 2)
+          ELSE 0
+        END as margen_ganancia,
         COUNT(DISTINCT v.id) as total_ventas
       FROM productos p
       LEFT JOIN categorias c ON p.categoria_id = c.id

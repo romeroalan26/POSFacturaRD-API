@@ -49,7 +49,7 @@ const validarProducto = (producto, esActualizacion = false) => {
 
   // Validar stock_minimo si se proporciona
   if (producto.stock_minimo !== undefined && producto.stock_minimo !== null) {
-    if (!Number.isInteger(producto.stock_minimo) || producto.stock_minimo < 0) {
+    if (!Number.isInteger(Number(producto.stock_minimo)) || Number(producto.stock_minimo) < 0) {
       errores.push('El stock mínimo debe ser un número entero no negativo');
     }
     // Validar que stock_minimo no sea mayor que el stock actual
@@ -335,6 +335,12 @@ const actualizarProducto = async (req, res) => {
     if (is_active !== undefined) {
       updates.push(`is_active = $${paramIndex}`);
       values.push(is_active === true || is_active === 'true' || is_active === 1);
+      paramIndex++;
+    }
+
+    if (req.body.stock_minimo !== undefined) {
+      updates.push(`stock_minimo = $${paramIndex}`);
+      values.push(req.body.stock_minimo);
       paramIndex++;
     }
 

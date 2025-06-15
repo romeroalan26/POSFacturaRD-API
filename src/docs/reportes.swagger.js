@@ -141,6 +141,18 @@
  *                       total_ingresos:
  *                         type: number
  *                         format: float
+ *                       ganancia_total:
+ *                         type: number
+ *                         format: float
+ *                         description: Ganancia total del producto
+ *                       ganancia_unitaria:
+ *                         type: number
+ *                         format: float
+ *                         description: Ganancia promedio por unidad
+ *                       margen_ganancia:
+ *                         type: number
+ *                         format: float
+ *                         description: Porcentaje de margen de ganancia
  *                       total_ventas:
  *                         type: integer
  *                 page:
