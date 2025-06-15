@@ -654,3 +654,93 @@
  *       500:
  *         description: Error del servidor
  */
+
+/**
+ * @swagger
+ * /api/reportes/ventas-por-categoria:
+ *   get:
+ *     summary: Obtiene el reporte de ventas agrupadas por categoría
+ *     tags: [Reportes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: fecha_inicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio del período (YYYY-MM-DD)
+ *       - in: query
+ *         name: fecha_fin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin del período (YYYY-MM-DD)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Número de página
+ *       - in: query
+ *         name: size
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 10
+ *         description: Cantidad de elementos por página
+ *     responses:
+ *       200:
+ *         description: Reporte de ventas por categoría
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       categoria_id:
+ *                         type: integer
+ *                       categoria:
+ *                         type: string
+ *                       total_ventas:
+ *                         type: integer
+ *                       total_productos_vendidos:
+ *                         type: integer
+ *                       total_ingresos:
+ *                         type: number
+ *                         format: float
+ *                       precio_promedio:
+ *                         type: number
+ *                         format: float
+ *                       ganancia_total:
+ *                         type: number
+ *                         format: float
+ *                       margen_ganancia:
+ *                         type: number
+ *                         format: float
+ *                 page:
+ *                   type: integer
+ *                 size:
+ *                   type: integer
+ *                 totalElements:
+ *                   type: integer
+ *                 totalPages:
+ *                   type: integer
+ *                 fecha_inicio:
+ *                   type: string
+ *                   format: date
+ *                 fecha_fin:
+ *                   type: string
+ *                   format: date
+ *       400:
+ *         description: Error de validación en los parámetros
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
+ */

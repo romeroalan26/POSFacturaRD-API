@@ -564,6 +564,97 @@ const obtenerReporteGanancias = async (req, res) => {
     }
 };
 
+const obtenerVentasPorCategoria = async (req, res) => {
+    try {
+        const { fecha_inicio, fecha_fin } = req.query;
+        const { page, size, offset } = getPagination(req);
+
+        // Validar fechas
+        const errores = validarFechas(fecha_inicio, fecha_fin);
+        if (errores.length > 0) {
+            return res.status(400).json({ mensaje: 'Error de validación', errores });
+        }
+
+        // Construir la consulta principal
+        let query = `
+            SELECT 
+                c.id as categoria_id,
+                c.nombre as categoria,
+                COUNT(DISTINCT v.id) as total_ventas,
+                SUM(vp.cantidad) as total_productos_vendidos,
+                SUM(vp.cantidad * vp.precio_unitario)::numeric(10,2) as total_ingresos,
+                ROUND(AVG(vp.precio_unitario)::numeric, 2) as precio_promedio,
+                ROUND(SUM(vp.cantidad * (vp.precio_unitario - p.precio_compra))::numeric, 2) as ganancia_total,
+                ROUND((SUM(vp.cantidad * (vp.precio_unitario - p.precio_compra)) / 
+                    NULLIF(SUM(vp.cantidad * p.precio_compra), 0) * 100)::numeric, 2) as margen_ganancia
+            FROM categorias c
+            LEFT JOIN productos p ON p.categoria_id = c.id
+            LEFT JOIN venta_productos vp ON vp.producto_id = p.id
+            LEFT JOIN ventas v ON v.id = vp.venta_id
+        `;
+
+        const queryParams = [];
+        const whereConditions = [];
+
+        if (fecha_inicio) {
+            whereConditions.push(`v.fecha::date >= $${queryParams.length + 1}::date`);
+            queryParams.push(fecha_inicio);
+        }
+        if (fecha_fin) {
+            whereConditions.push(`v.fecha::date <= $${queryParams.length + 1}::date`);
+            queryParams.push(fecha_fin);
+        }
+
+        if (whereConditions.length > 0) {
+            query += ' WHERE ' + whereConditions.join(' AND ');
+        }
+
+        query += `
+            GROUP BY c.id, c.nombre
+            HAVING COUNT(DISTINCT v.id) > 0
+            ORDER BY total_ingresos DESC
+            OFFSET $${queryParams.length + 1} LIMIT $${queryParams.length + 2}
+        `;
+        queryParams.push(offset, size);
+
+        // Consulta para contar el total de elementos
+        let countQuery = `
+            SELECT COUNT(*) FROM (
+                SELECT c.id
+                FROM categorias c
+                LEFT JOIN productos p ON p.categoria_id = c.id
+                LEFT JOIN venta_productos vp ON vp.producto_id = p.id
+                LEFT JOIN ventas v ON v.id = vp.venta_id
+                ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
+                GROUP BY c.id
+                HAVING COUNT(DISTINCT v.id) > 0
+            ) AS sub
+        `;
+
+        const [resultado, countResult] = await Promise.all([
+            db.query(query, queryParams),
+            db.query(countQuery, queryParams.slice(0, queryParams.length - 2))
+        ]);
+
+        const totalElements = parseInt(countResult.rows[0]?.count || 0);
+        const totalPages = Math.ceil(totalElements / size);
+
+        res.json({
+            data: resultado.rows,
+            page: parseInt(page),
+            size: parseInt(size),
+            totalElements,
+            totalPages,
+            fecha_inicio: fecha_inicio || null,
+            fecha_fin: fecha_fin || null
+        });
+
+    } catch (error) {
+        console.error('Error al obtener ventas por categoría:', error);
+        res.status(500).json({ mensaje: 'Error del servidor' });
+    }
+};
+
 module.exports = {
     obtenerVentasDiarias,
     obtenerProductosMasVendidos,
@@ -572,5 +663,6 @@ module.exports = {
     obtenerVentasPorHora,
     obtenerTendenciaVentas,
     obtenerProductosBajoStock,
-    obtenerReporteGanancias
+    obtenerReporteGanancias,
+    obtenerVentasPorCategoria
 };
