@@ -1,5 +1,6 @@
 const db = require('../db');
 require('dotenv').config();
+const PDFDocument = require('pdfkit');
 
 // Validaciones
 const validarVenta = (venta) => {
@@ -585,10 +586,190 @@ const exportarVentas = async (req, res) => {
   }
 };
 
+const exportarVentasPDF = async (req, res) => {
+  try {
+    const { fecha_inicio, fecha_fin, metodo_pago } = req.query;
+
+    let query = `
+      WITH venta_ganancias AS (
+        SELECT 
+          venta_id,
+          ROUND((precio_unitario - precio_compra) * cantidad, 2) as ganancia_total,
+          CASE 
+            WHEN precio_compra > 0 THEN ROUND(((precio_unitario - precio_compra) / precio_compra * 100), 2)
+            ELSE 0 
+          END as margen_ganancia
+        FROM venta_productos
+      )
+      SELECT 
+        v.id,
+        v.fecha,
+        v.total,
+        v.metodo_pago,
+        v.subtotal,
+        v.itbis_total,
+        v.total_final::numeric as total_final,
+        COALESCE(SUM(vg.ganancia_total), 0)::numeric as ganancia_total_venta,
+        ROUND(AVG(vg.margen_ganancia), 2) as margen_promedio,
+        u.nombre as usuario_nombre,
+        u.email as usuario_email
+      FROM ventas v
+      LEFT JOIN venta_ganancias vg ON v.id = vg.venta_id
+      LEFT JOIN usuarios u ON v.usuario_id = u.id
+    `;
+
+    const queryParams = [];
+    const conditions = [];
+
+    if (fecha_inicio) {
+      queryParams.push(fecha_inicio);
+      conditions.push(`v.fecha::date >= $${queryParams.length}::date AT TIME ZONE 'America/Santo_Domingo'`);
+    }
+
+    if (fecha_fin) {
+      queryParams.push(fecha_fin);
+      conditions.push(`v.fecha::date <= $${queryParams.length}::date AT TIME ZONE 'America/Santo_Domingo'`);
+    }
+
+    if (metodo_pago) {
+      queryParams.push(metodo_pago);
+      conditions.push(`v.metodo_pago = $${queryParams.length}`);
+    }
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' GROUP BY v.id, u.id ORDER BY v.fecha DESC';
+
+    const { rows: ventas } = await db.query(query, queryParams);
+
+    // Obtener productos de cada venta
+    for (const venta of ventas) {
+      const { rows: productos } = await db.query(
+        `SELECT vp.*, 
+                p.nombre as nombre_producto,
+                ROUND((vp.precio_unitario - vp.precio_compra), 2) as ganancia_unitaria,
+                ROUND((vp.precio_unitario - vp.precio_compra) * vp.cantidad, 2) as ganancia_total,
+                CASE 
+                  WHEN vp.precio_compra > 0 THEN ROUND(((vp.precio_unitario - vp.precio_compra) / vp.precio_compra * 100), 2)
+                  ELSE 0 
+                END as margen_ganancia
+         FROM venta_productos vp
+         JOIN productos p ON p.id = vp.producto_id
+         WHERE vp.venta_id = $1`,
+        [venta.id]
+      );
+      venta.productos = productos;
+    }
+
+    // Crear el documento PDF
+    const doc = new PDFDocument();
+
+    // Configurar headers para descarga
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=ventas.pdf');
+
+    // Pipe el PDF directamente a la respuesta
+    doc.pipe(res);
+
+    // Función para formatear fecha
+    function formatearFecha(fecha) {
+      if (!fecha) return '';
+      const d = new Date(fecha);
+      const pad = n => n.toString().padStart(2, '0');
+      let hours = d.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(hours)}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${ampm}`;
+    }
+
+    // Título del reporte
+    doc.fontSize(20).text('Reporte de Ventas', { align: 'center' });
+    doc.moveDown();
+
+    // Información del período
+    if (fecha_inicio || fecha_fin) {
+      doc.fontSize(12).text('Período:', { continued: true });
+      doc.text(` ${fecha_inicio || 'Inicio'} - ${fecha_fin || 'Fin'}`, { align: 'left' });
+      doc.moveDown();
+    }
+
+    // Resumen al inicio
+    doc.fontSize(12).text('Resumen:', { underline: true });
+    doc.moveDown();
+    doc.fontSize(10);
+    const totalVentas = ventas.length;
+    const totalIngresos = ventas.reduce((sum, v) => sum + Number(v.total_final), 0);
+    const totalGanancias = ventas.reduce((sum, v) => sum + Number(v.ganancia_total_venta), 0);
+    doc.text(`Total de Ventas: ${totalVentas}`);
+    doc.text(`Total de Ingresos: RD$ ${totalIngresos.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    doc.text(`Total de Ganancias: RD$ ${totalGanancias.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    doc.moveDown(2);
+
+    // Tabla de ventas
+    let y = doc.y;
+    const margin = 50;
+    const rowHeight = 20;
+    const columns = [
+      { header: 'ID', width: 50 },
+      { header: 'Fecha', width: 150 },
+      { header: 'Usuario', width: 150 },
+      { header: 'Método', width: 100 },
+      { header: 'Total', width: 100 }
+    ];
+
+    // Dibujar encabezados
+    doc.fontSize(10);
+    let x = margin;
+    columns.forEach(column => {
+      doc.text(column.header, x, y, { width: column.width });
+      x += column.width;
+    });
+
+    // Dibujar líneas de ventas
+    y += rowHeight;
+    ventas.forEach(venta => {
+      if (y > 700) { // Nueva página si se alcanza el final
+        doc.addPage();
+        y = 50;
+      }
+
+      x = margin;
+      doc.text(venta.id.toString(), x, y, { width: columns[0].width });
+      x += columns[0].width;
+      doc.text(formatearFecha(venta.fecha), x, y, { width: columns[1].width });
+      x += columns[1].width;
+      doc.text(venta.usuario_nombre || '', x, y, { width: columns[2].width });
+      x += columns[2].width;
+      doc.text(venta.metodo_pago || '', x, y, { width: columns[3].width });
+      x += columns[3].width;
+      doc.text(Number(venta.total_final).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), x, y, { width: columns[4].width });
+
+      y += rowHeight;
+    });
+
+    // Finalizar el documento
+    doc.end();
+
+  } catch (error) {
+    console.error('Error al exportar ventas a PDF:', error);
+    // Si el stream ya está cerrado, no intentar enviar respuesta
+    if (!res.headersSent) {
+      res.status(500).json({
+        mensaje: 'Error al exportar ventas a PDF',
+        error: error.message
+      });
+    }
+  }
+};
+
 module.exports = {
   registrarVenta,
   obtenerVentas,
   obtenerVenta,
   eliminarVenta,
-  exportarVentas
+  exportarVentas,
+  exportarVentasPDF
 };

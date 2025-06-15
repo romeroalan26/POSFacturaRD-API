@@ -426,3 +426,87 @@
  *       500:
  *         description: Error del servidor
  */
+
+/**
+ * @swagger
+ * /api/ventas/exportar/csv:
+ *   get:
+ *     summary: Exportar ventas a CSV
+ *     description: Genera un archivo CSV con el reporte de ventas
+ *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: fecha_inicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio del período (YYYY-MM-DD)
+ *       - in: query
+ *         name: fecha_fin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin del período (YYYY-MM-DD)
+ *       - in: query
+ *         name: metodo_pago
+ *         schema:
+ *           type: string
+ *           enum: [efectivo, tarjeta, transferencia]
+ *         description: Filtrar por método de pago
+ *     responses:
+ *       200:
+ *         description: Archivo CSV generado exitosamente
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
+ */
+
+/**
+ * @swagger
+ * /api/ventas/exportar/pdf:
+ *   get:
+ *     summary: Exportar ventas a PDF
+ *     description: Genera un archivo PDF con el reporte de ventas
+ *     tags: [Ventas]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: fecha_inicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio del período (YYYY-MM-DD)
+ *       - in: query
+ *         name: fecha_fin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin del período (YYYY-MM-DD)
+ *       - in: query
+ *         name: metodo_pago
+ *         schema:
+ *           type: string
+ *           enum: [efectivo, tarjeta, transferencia]
+ *         description: Filtrar por método de pago
+ *     responses:
+ *       200:
+ *         description: Archivo PDF generado exitosamente
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
+ */
