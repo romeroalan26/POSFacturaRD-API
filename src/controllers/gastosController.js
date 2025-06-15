@@ -1,4 +1,5 @@
 const { pool } = require('../db');
+const PDFDocument = require('pdfkit');
 
 // Obtener todos los gastos
 const obtenerGastos = async (req, res) => {
@@ -293,10 +294,257 @@ const eliminarGasto = async (req, res) => {
     }
 };
 
+const exportarGastos = async (req, res) => {
+    try {
+        const { fecha_inicio, fecha_fin, categoria_id } = req.query;
+
+        let query = `
+      SELECT 
+        g.id,
+        g.fecha,
+        g.monto,
+        g.descripcion,
+        c.nombre as categoria_nombre,
+        u.nombre as usuario_nombre,
+        u.email as usuario_email
+      FROM gastos g
+      LEFT JOIN categorias_gastos c ON g.categoria_id = c.id
+      LEFT JOIN usuarios u ON g.usuario_id = u.id
+    `;
+
+        const queryParams = [];
+        const conditions = [];
+
+        if (fecha_inicio) {
+            queryParams.push(fecha_inicio);
+            conditions.push(`g.fecha::date >= $${queryParams.length}::date`);
+        }
+
+        if (fecha_fin) {
+            queryParams.push(fecha_fin);
+            conditions.push(`g.fecha::date <= $${queryParams.length}::date`);
+        }
+
+        if (categoria_id) {
+            queryParams.push(categoria_id);
+            conditions.push(`g.categoria_id = $${queryParams.length}`);
+        }
+
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY g.fecha DESC';
+
+        const { rows: gastos } = await pool.query(query, queryParams);
+
+        // Función para formatear fecha a 'DD-MM-YYYY hh:mm:ss AM/PM'
+        function formatearFecha(fecha) {
+            if (!fecha) return '';
+            const d = new Date(fecha);
+            const pad = n => n.toString().padStart(2, '0');
+            let hours = d.getHours();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(hours)}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${ampm}`;
+        }
+
+        // Crear el contenido CSV
+        const headers = [
+            'ID',
+            'Fecha',
+            'Monto',
+            'Descripción',
+            'Categoría',
+            'Usuario'
+        ];
+
+        const rows = gastos.map(gasto => [
+            gasto.id,
+            formatearFecha(gasto.fecha),
+            gasto.monto,
+            gasto.descripcion,
+            gasto.categoria_nombre,
+            gasto.usuario_nombre
+        ]);
+
+        // Agregar BOM para Excel y configurar codificación UTF-8
+        const BOM = '\uFEFF';
+        const csvContent = BOM + [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => {
+                // Escapar comillas dobles y asegurar que el valor esté entre comillas
+                const escapedCell = String(cell).replace(/"/g, '""');
+                return `"${escapedCell}"`;
+            }).join(','))
+        ].join('\n');
+
+        // Configurar headers para descarga
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename=gastos.csv');
+
+        res.send(csvContent);
+
+    } catch (error) {
+        console.error('Error al exportar gastos:', error);
+        res.status(500).json({
+            mensaje: 'Error al exportar gastos',
+            error: error.message
+        });
+    }
+};
+
+const exportarGastosPDF = async (req, res) => {
+    try {
+        const { fecha_inicio, fecha_fin, categoria_id } = req.query;
+
+        let query = `
+      SELECT 
+        g.id,
+        g.fecha,
+        g.monto,
+        g.descripcion,
+        c.nombre as categoria_nombre,
+        u.nombre as usuario_nombre,
+        u.email as usuario_email
+      FROM gastos g
+      LEFT JOIN categorias_gastos c ON g.categoria_id = c.id
+      LEFT JOIN usuarios u ON g.usuario_id = u.id
+    `;
+
+        const queryParams = [];
+        const conditions = [];
+
+        if (fecha_inicio) {
+            queryParams.push(fecha_inicio);
+            conditions.push(`g.fecha::date >= $${queryParams.length}::date`);
+        }
+
+        if (fecha_fin) {
+            queryParams.push(fecha_fin);
+            conditions.push(`g.fecha::date <= $${queryParams.length}::date`);
+        }
+
+        if (categoria_id) {
+            queryParams.push(categoria_id);
+            conditions.push(`g.categoria_id = $${queryParams.length}`);
+        }
+
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY g.fecha DESC';
+
+        const { rows: gastos } = await pool.query(query, queryParams);
+
+        // Crear el documento PDF
+        const doc = new PDFDocument();
+
+        // Configurar headers para descarga
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=gastos.pdf');
+
+        // Pipe el PDF directamente a la respuesta
+        doc.pipe(res);
+
+        // Función para formatear fecha
+        function formatearFecha(fecha) {
+            if (!fecha) return '';
+            const d = new Date(fecha);
+            const pad = n => n.toString().padStart(2, '0');
+            let hours = d.getHours();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(hours)}:${pad(d.getMinutes())}:${pad(d.getSeconds())} ${ampm}`;
+        }
+
+        // Título del reporte
+        doc.fontSize(20).text('Reporte de Gastos', { align: 'center' });
+        doc.moveDown();
+
+        // Información del período
+        if (fecha_inicio || fecha_fin) {
+            doc.fontSize(12).text('Período:', { continued: true });
+            doc.text(` ${fecha_inicio || 'Inicio'} - ${fecha_fin || 'Fin'}`, { align: 'left' });
+            doc.moveDown();
+        }
+
+        // Resumen al inicio
+        doc.fontSize(12).text('Resumen:', { underline: true });
+        doc.moveDown();
+        doc.fontSize(10);
+        const totalGastos = gastos.length;
+        const totalMonto = gastos.reduce((sum, g) => sum + Number(g.monto), 0);
+        doc.text(`Total de Gastos: ${totalGastos}`);
+        doc.text(`Total de Monto: RD$ ${totalMonto.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        doc.moveDown(2);
+
+        // Tabla de gastos
+        let y = doc.y;
+        const margin = 50;
+        const rowHeight = 20;
+        const columns = [
+            { header: 'ID', width: 50 },
+            { header: 'Fecha', width: 150 },
+            { header: 'Monto', width: 100 },
+            { header: 'Categoría', width: 150 },
+            { header: 'Usuario', width: 150 }
+        ];
+
+        // Dibujar encabezados
+        doc.fontSize(10);
+        let x = margin;
+        columns.forEach(column => {
+            doc.text(column.header, x, y, { width: column.width });
+            x += column.width;
+        });
+
+        // Dibujar líneas de gastos
+        y += rowHeight;
+        gastos.forEach(gasto => {
+            if (y > 700) { // Nueva página si se alcanza el final
+                doc.addPage();
+                y = 50;
+            }
+
+            x = margin;
+            doc.text(gasto.id.toString(), x, y, { width: columns[0].width });
+            x += columns[0].width;
+            doc.text(formatearFecha(gasto.fecha), x, y, { width: columns[1].width });
+            x += columns[1].width;
+            doc.text(Number(gasto.monto).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), x, y, { width: columns[2].width });
+            x += columns[2].width;
+            doc.text(gasto.categoria_nombre || '', x, y, { width: columns[3].width });
+            x += columns[3].width;
+            doc.text(gasto.usuario_nombre || '', x, y, { width: columns[4].width });
+
+            y += rowHeight;
+        });
+
+        // Finalizar el documento
+        doc.end();
+
+    } catch (error) {
+        console.error('Error al exportar gastos a PDF:', error);
+        // Si el stream ya está cerrado, no intentar enviar respuesta
+        if (!res.headersSent) {
+            res.status(500).json({
+                mensaje: 'Error al exportar gastos a PDF',
+                error: error.message
+            });
+        }
+    }
+};
+
 module.exports = {
     obtenerGastos,
     obtenerGasto,
     crearGasto,
     actualizarGasto,
-    eliminarGasto
+    eliminarGasto,
+    exportarGastos,
+    exportarGastosPDF
 };

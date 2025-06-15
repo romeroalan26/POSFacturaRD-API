@@ -353,4 +353,82 @@
  *         description: Gasto no encontrado
  *       500:
  *         description: Error del servidor
+ */
+
+/**
+ * @swagger
+ * /api/gastos/exportar/csv:
+ *   get:
+ *     summary: Exportar gastos a CSV
+ *     description: Exporta los gastos a un archivo CSV con filtros opcionales
+ *     tags: [Gastos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: fecha_inicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio para filtrar (YYYY-MM-DD)
+ *       - in: query
+ *         name: fecha_fin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin para filtrar (YYYY-MM-DD)
+ *       - in: query
+ *         name: categoria_id
+ *         schema:
+ *           type: integer
+ *         description: ID de la categoría para filtrar
+ *     responses:
+ *       200:
+ *         description: Archivo CSV generado exitosamente
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
+ * 
+ * /api/gastos/exportar/pdf:
+ *   get:
+ *     summary: Exportar gastos a PDF
+ *     description: Exporta los gastos a un archivo PDF con filtros opcionales
+ *     tags: [Gastos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: fecha_inicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio para filtrar (YYYY-MM-DD)
+ *       - in: query
+ *         name: fecha_fin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin para filtrar (YYYY-MM-DD)
+ *       - in: query
+ *         name: categoria_id
+ *         schema:
+ *           type: integer
+ *         description: ID de la categoría para filtrar
+ *     responses:
+ *       200:
+ *         description: Archivo PDF generado exitosamente
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
  */ 

@@ -19,4 +19,10 @@ router.put('/:id', authMiddleware, checkPermission('expenses', 'update'), gastos
 // Eliminar un gasto
 router.delete('/:id', authMiddleware, checkPermission('expenses', 'delete'), gastosController.eliminarGasto);
 
+// Exportar gastos a CSV
+router.get('/exportar/csv', authMiddleware, checkPermission('expenses', 'view'), gastosController.exportarGastos);
+
+// Exportar gastos a PDF
+router.get('/exportar/pdf', authMiddleware, checkPermission('expenses', 'view'), gastosController.exportarGastosPDF);
+
 module.exports = router; 
