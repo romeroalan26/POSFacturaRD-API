@@ -28,6 +28,22 @@
  *       required:
  *         - nombre
  *         - is_active
+ * 
+ *     CategoriaGastoInput:
+ *       type: object
+ *       required:
+ *         - nombre
+ *         - is_active
+ *       properties:
+ *         nombre:
+ *           type: string
+ *           description: Nombre de la categoría de gasto
+ *         descripcion:
+ *           type: string
+ *           description: Descripción de la categoría de gasto
+ *         is_active:
+ *           type: boolean
+ *           description: Estado de la categoría
  */
 
 /**
@@ -100,10 +116,53 @@
  *         description: No autorizado
  *       500:
  *         description: Error del servidor
- */
-
-/**
- * @swagger
+ * 
+ *   post:
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Crear una nueva categoría de gasto
+ *     description: Crea una nueva categoría de gasto
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CategoriaGastoInput'
+ *     responses:
+ *       201:
+ *         description: Categoría creada exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/CategoriaGasto'
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Categoría creada exitosamente"
+ *       400:
+ *         description: Error de validación
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Error de validación"
+ *                 errores:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["El nombre es requerido", "El estado es requerido"]
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
+ * 
  * /api/categorias-gastos/{id}:
  *   get:
  *     tags:
@@ -125,74 +184,19 @@
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   $ref: '#/components/schemas/CategoriaGasto'
+ *               $ref: '#/components/schemas/CategoriaGasto'
  *       404:
  *         description: Categoría no encontrada
  *       401:
  *         description: No autorizado
  *       500:
  *         description: Error del servidor
- */
-
-/**
- * @swagger
- * /api/categorias-gastos:
- *   post:
- *     tags:
- *       - Categorías de Gastos
- *     summary: Crear una nueva categoría de gasto
- *     description: Crea una nueva categoría de gasto (requiere permisos de administrador)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - nombre
- *             properties:
- *               nombre:
- *                 type: string
- *                 description: Nombre de la categoría
- *               descripcion:
- *                 type: string
- *                 description: Descripción de la categoría
- *     responses:
- *       201:
- *         description: Categoría creada exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   $ref: '#/components/schemas/CategoriaGasto'
- *                 mensaje:
- *                   type: string
- *                   example: Categoría creada exitosamente
- *       400:
- *         description: Error de validación
- *       401:
- *         description: No autorizado
- *       403:
- *         description: No tiene permisos para realizar esta acción
- *       500:
- *         description: Error del servidor
- */
-
-/**
- * @swagger
- * /api/categorias-gastos/{id}:
+ * 
  *   put:
  *     tags:
  *       - Categorías de Gastos
  *     summary: Actualizar una categoría de gasto
- *     description: Actualiza los datos de una categoría de gasto existente (requiere permisos de administrador)
+ *     description: Actualiza los datos de una categoría de gasto existente
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -207,19 +211,7 @@
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - nombre
- *             properties:
- *               nombre:
- *                 type: string
- *                 description: Nombre de la categoría
- *               descripcion:
- *                 type: string
- *                 description: Descripción de la categoría
- *               activo:
- *                 type: boolean
- *                 description: Estado de la categoría
+ *             $ref: '#/components/schemas/CategoriaGastoInput'
  *     responses:
  *       200:
  *         description: Categoría actualizada exitosamente
@@ -232,29 +224,34 @@
  *                   $ref: '#/components/schemas/CategoriaGasto'
  *                 mensaje:
  *                   type: string
- *                   example: Categoría actualizada exitosamente
+ *                   example: "Categoría actualizada exitosamente"
  *       400:
  *         description: Error de validación
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Error de validación"
+ *                 errores:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["El nombre es requerido", "El estado es requerido"]
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permisos para realizar esta acción
  *       404:
  *         description: Categoría no encontrada
  *       500:
  *         description: Error del servidor
- */
-
-/**
- * @swagger
- * /api/categorias-gastos/{id}:
+ * 
  *   delete:
  *     tags:
  *       - Categorías de Gastos
  *     summary: Eliminar una categoría de gasto
- *     description: |
- *       Elimina una categoría de gasto (requiere permisos de administrador).
- *       Nota: No se puede eliminar una categoría que tenga gastos asociados.
+ *     description: Elimina una categoría de gasto. Solo se puede eliminar si no tiene gastos asociados.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -274,9 +271,9 @@
  *               properties:
  *                 mensaje:
  *                   type: string
- *                   example: Categoría eliminada exitosamente
+ *                   example: "Categoría eliminada exitosamente"
  *       400:
- *         description: No se puede eliminar la categoría porque tiene gastos asociados
+ *         description: No se puede eliminar la categoría
  *         content:
  *           application/json:
  *             schema:
@@ -284,11 +281,9 @@
  *               properties:
  *                 mensaje:
  *                   type: string
- *                   example: No se puede eliminar la categoría porque tiene gastos asociados
+ *                   example: "No se puede eliminar la categoría porque tiene gastos asociados"
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permisos para realizar esta acción
  *       404:
  *         description: Categoría no encontrada
  *       500:

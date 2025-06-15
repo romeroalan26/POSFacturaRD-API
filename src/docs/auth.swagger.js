@@ -128,11 +128,57 @@
 
 /**
  * @swagger
+ * /api/auth/login:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Iniciar sesión
+ *     description: Autentica a un usuario y retorna un token JWT
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LoginRequest'
+ *     responses:
+ *       200:
+ *         description: Login exitoso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthResponse'
+ *       400:
+ *         description: Error de validación
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Error de validación"
+ *                 errores:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["El email es requerido", "La contraseña es requerida"]
+ *       401:
+ *         description: Credenciales inválidas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Credenciales inválidas"
+ *       500:
+ *         description: Error del servidor
+ * 
  * /api/auth/register:
  *   post:
- *     summary: Registrar un nuevo usuario
  *     tags: [Auth]
- *     description: Registra un nuevo usuario con rol de cajero por defecto
+ *     summary: Registrar nuevo usuario
+ *     description: Crea una nueva cuenta de usuario
  *     requestBody:
  *       required: true
  *       content:
@@ -147,51 +193,20 @@
  *             schema:
  *               $ref: '#/components/schemas/AuthResponse'
  *       400:
- *         description: Error en los datos proporcionados
+ *         description: Error de validación
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
+ *                 mensaje:
  *                   type: string
- *                   example: El usuario ya existe
- */
-
-/**
- * @swagger
- * /api/auth/login:
- *   post:
- *     summary: Iniciar sesión
- *     tags: [Auth]
- *     description: Inicia sesión y devuelve el token JWT junto con los datos del usuario y sus permisos
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/LoginRequest'
- *     responses:
- *       200:
- *         description: Login exitoso
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/AuthResponse'
- *       401:
- *         description: Credenciales inválidas
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Credenciales inválidas
+ *                   example: "Error de validación"
+ *                 errores:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["El email ya está registrado", "La contraseña debe tener al menos 6 caracteres"]
+ *       500:
+ *         description: Error del servidor
  */ 
