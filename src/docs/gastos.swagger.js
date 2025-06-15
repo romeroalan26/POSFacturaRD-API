@@ -139,6 +139,11 @@
  *         schema:
  *           type: integer
  *         description: ID de la categoría para filtrar
+ *       - in: query
+ *         name: descripcion
+ *         schema:
+ *           type: string
+ *         description: Texto para buscar en la descripción del gasto (búsqueda parcial)
  *     responses:
  *       200:
  *         description: Lista de gastos obtenida exitosamente

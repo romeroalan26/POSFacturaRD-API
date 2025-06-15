@@ -3,7 +3,7 @@ const { pool } = require('../db');
 // Obtener todos los gastos
 const obtenerGastos = async (req, res) => {
     try {
-        const { page = 1, size = 10, fecha_inicio, fecha_fin, categoria_id } = req.query;
+        const { page = 1, size = 10, fecha_inicio, fecha_fin, categoria_id, descripcion } = req.query;
         const offset = (page - 1) * size;
 
         let query = `
@@ -32,6 +32,11 @@ const obtenerGastos = async (req, res) => {
         if (categoria_id) {
             queryParams.push(categoria_id);
             conditions.push(`g.categoria_id = $${queryParams.length}`);
+        }
+
+        if (descripcion) {
+            queryParams.push(`%${descripcion}%`);
+            conditions.push(`g.descripcion ILIKE $${queryParams.length}`);
         }
 
         if (conditions.length > 0) {

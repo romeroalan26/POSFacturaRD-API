@@ -99,8 +99,8 @@ const registrarVenta = async (req, res) => {
 
     // Insertar la venta
     const { rows: [venta] } = await client.query(
-      `INSERT INTO ventas (total, metodo_pago, subtotal, itbis_total, total_final, usuario_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO ventas (total, metodo_pago, subtotal, itbis_total, total_final, usuario_id, fecha)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP AT TIME ZONE 'America/Santo_Domingo')
        RETURNING id, fecha, total, metodo_pago, subtotal, itbis_total, total_final, usuario_id`,
       [total_final, metodo_pago, subtotal, itbis_total, total_final, req.user.id]
     );
@@ -205,12 +205,12 @@ const obtenerVentas = async (req, res) => {
 
     if (fecha_inicio) {
       queryParams.push(fecha_inicio);
-      conditions.push(`v.fecha >= $${queryParams.length}`);
+      conditions.push(`v.fecha::date >= $${queryParams.length}::date AT TIME ZONE 'America/Santo_Domingo'`);
     }
 
     if (fecha_fin) {
       queryParams.push(fecha_fin);
-      conditions.push(`v.fecha <= $${queryParams.length}`);
+      conditions.push(`v.fecha::date <= $${queryParams.length}::date AT TIME ZONE 'America/Santo_Domingo'`);
     }
 
     if (metodo_pago) {
