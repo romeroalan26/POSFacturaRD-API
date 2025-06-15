@@ -11,6 +11,9 @@ const ventasRoutes = require('./routes/ventas');
 const reportesRoutes = require('./routes/reportes');
 const userRoutes = require('./routes/userRoutes');
 const categoriasRoutes = require('./routes/categorias');
+const gastosRoutes = require('./routes/gastos');
+const categoriasGastosRoutes = require('./routes/categoriasGastos');
+const usuariosRoutes = require('./routes/usuarios');
 const path = require('path');
 
 const app = express();
@@ -53,6 +56,9 @@ app.use('/api/ventas', ventasRoutes);
 app.use('/api/reportes', reportesRoutes);
 app.use('/api/usuarios', userRoutes);
 app.use('/api/categorias', categoriasRoutes);
+app.use('/api/gastos', gastosRoutes);
+app.use('/api/categorias-gastos', categoriasGastosRoutes);
+app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/imagenes/productos', express.static(path.join(__dirname, '../imagenes_productos')));
 
 // Ruta de prueba

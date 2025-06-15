@@ -1,19 +1,17 @@
 const express = require('express');
 const router = express.Router();
-const { obtenerCategorias, crearCategoria, actualizarCategoria, eliminarCategoria } = require('../controllers/categoriasController');
+const categoriasGastosController = require('../controllers/categoriasGastosController');
 const authMiddleware = require('../middleware/auth');
 const checkPermission = require('../middleware/checkPermission');
 
 /**
  * @swagger
- * /categorias:
+ * /api/categorias-gastos:
  *   get:
- *     tags: [Categorías]
- *     summary: Obtiene todas las categorías
- *     description: |
- *       Retorna una lista paginada de categorías.
- *       Nota importante: Las categorías inactivas (is_active=false) seguirán apareciendo en los productos que las tengan asignadas,
- *       pero no podrán ser asignadas a nuevos productos.
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Obtener todas las categorías de gastos
+ *     description: Retorna una lista paginada de categorías de gastos
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -33,51 +31,29 @@ const checkPermission = require('../middleware/checkPermission');
  *         name: buscar
  *         schema:
  *           type: string
- *         description: Término de búsqueda para filtrar por nombre o descripción
- *       - in: query
- *         name: is_active
- *         schema:
- *           type: boolean
- *         description: Filtrar por estado activo/inactivo
+ *         description: Término de búsqueda para filtrar categorías
  *     responses:
  *       200:
  *         description: Lista de categorías obtenida exitosamente
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Categoria'
- *                 page:
- *                   type: integer
- *                 size:
- *                   type: integer
- *                 totalElements:
- *                   type: integer
- *                 totalPages:
- *                   type: integer
- *                 buscar:
- *                   type: string
- *                 is_active:
- *                   type: boolean
- *                   nullable: true
+ *               $ref: '#/components/schemas/PaginatedResponse'
  *       401:
  *         description: No autorizado
  *       500:
  *         description: Error del servidor
  */
-router.get('/', authMiddleware, checkPermission('products', 'view'), obtenerCategorias);
+router.get('/', authMiddleware, checkPermission('expenses', 'view'), categoriasGastosController.obtenerCategorias);
 
 /**
  * @swagger
- * /categorias/{id}:
+ * /api/categorias-gastos/{id}:
  *   get:
- *     tags: [Categorías]
- *     summary: Obtiene una categoría específica
- *     description: Retorna los detalles de una categoría por su ID
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Obtener una categoría de gasto específica
+ *     description: Retorna los detalles de una categoría de gasto por su ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -93,7 +69,7 @@ router.get('/', authMiddleware, checkPermission('products', 'view'), obtenerCate
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Categoria'
+ *               $ref: '#/components/schemas/CategoriaGasto'
  *       404:
  *         description: Categoría no encontrada
  *       401:
@@ -101,15 +77,16 @@ router.get('/', authMiddleware, checkPermission('products', 'view'), obtenerCate
  *       500:
  *         description: Error del servidor
  */
-router.get('/:id', authMiddleware, checkPermission('products', 'view'), obtenerCategorias);
+router.get('/:id', authMiddleware, checkPermission('expenses', 'view'), categoriasGastosController.obtenerCategoria);
 
 /**
  * @swagger
- * /categorias:
+ * /api/categorias-gastos:
  *   post:
- *     tags: [Categorías]
- *     summary: Crea una nueva categoría
- *     description: Crea una nueva categoría (requiere permisos de administrador o inventario)
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Crear una nueva categoría de gasto
+ *     description: Crea una nueva categoría de gasto (requiere permisos de administrador)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -127,16 +104,13 @@ router.get('/:id', authMiddleware, checkPermission('products', 'view'), obtenerC
  *               descripcion:
  *                 type: string
  *                 description: Descripción de la categoría
- *               is_active:
- *                 type: boolean
- *                 description: Estado de la categoría. Si es false, la categoría no podrá ser asignada a nuevos productos, pero los productos existentes mantendrán su referencia a esta categoría.
  *     responses:
  *       201:
  *         description: Categoría creada exitosamente
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Categoria'
+ *               $ref: '#/components/schemas/CategoriaGasto'
  *       400:
  *         description: Error de validación
  *       401:
@@ -146,15 +120,16 @@ router.get('/:id', authMiddleware, checkPermission('products', 'view'), obtenerC
  *       500:
  *         description: Error del servidor
  */
-router.post('/', authMiddleware, checkPermission('products', 'create'), crearCategoria);
+router.post('/', authMiddleware, checkPermission('expenses', 'create'), categoriasGastosController.crearCategoria);
 
 /**
  * @swagger
- * /categorias/{id}:
+ * /api/categorias-gastos/{id}:
  *   put:
- *     tags: [Categorías]
- *     summary: Actualiza una categoría existente
- *     description: Actualiza los datos de una categoría existente (requiere permisos de administrador o inventario)
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Actualizar una categoría de gasto
+ *     description: Actualiza los datos de una categoría de gasto existente (requiere permisos de administrador)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -181,14 +156,14 @@ router.post('/', authMiddleware, checkPermission('products', 'create'), crearCat
  *                 description: Descripción de la categoría
  *               is_active:
  *                 type: boolean
- *                 description: Estado de la categoría. Si es false, la categoría no podrá ser asignada a nuevos productos, pero los productos existentes mantendrán su referencia a esta categoría.
+ *                 description: Estado de la categoría (activo/inactivo)
  *     responses:
  *       200:
  *         description: Categoría actualizada exitosamente
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Categoria'
+ *               $ref: '#/components/schemas/CategoriaGasto'
  *       400:
  *         description: Error de validación
  *       401:
@@ -200,17 +175,16 @@ router.post('/', authMiddleware, checkPermission('products', 'create'), crearCat
  *       500:
  *         description: Error del servidor
  */
-router.put('/:id', authMiddleware, checkPermission('products', 'update'), actualizarCategoria);
+router.put('/:id', authMiddleware, checkPermission('expenses', 'update'), categoriasGastosController.actualizarCategoria);
 
 /**
  * @swagger
- * /categorias/{id}:
+ * /api/categorias-gastos/{id}:
  *   delete:
- *     tags: [Categorías]
- *     summary: Elimina una categoría
- *     description: |
- *       Elimina una categoría (requiere permisos de administrador).
- *       Nota: No se puede eliminar una categoría que tenga productos asociados.
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Eliminar una categoría de gasto
+ *     description: Elimina una categoría de gasto (requiere permisos de administrador)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -223,24 +197,6 @@ router.put('/:id', authMiddleware, checkPermission('products', 'update'), actual
  *     responses:
  *       200:
  *         description: Categoría eliminada exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: Categoría eliminada exitosamente
- *       400:
- *         description: No se puede eliminar la categoría porque tiene productos asociados
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: No se puede eliminar la categoría porque tiene productos asociados
  *       401:
  *         description: No autorizado
  *       403:
@@ -250,6 +206,6 @@ router.put('/:id', authMiddleware, checkPermission('products', 'update'), actual
  *       500:
  *         description: Error del servidor
  */
-router.delete('/:id', authMiddleware, checkPermission('products', 'delete'), eliminarCategoria);
+router.delete('/:id', authMiddleware, checkPermission('expenses', 'delete'), categoriasGastosController.eliminarCategoria);
 
 module.exports = router; 

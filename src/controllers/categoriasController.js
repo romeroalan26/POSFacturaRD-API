@@ -24,69 +24,86 @@ const validarCategoria = (categoria, esActualizacion = false) => {
     return errores;
 };
 
-// Obtener categorías
+// Obtener todas las categorías
 const obtenerCategorias = async (req, res) => {
     try {
-        const { buscar } = req.query;
-        const { page, size, offset } = getPagination(req);
+        const { page = 1, size = 10, buscar = '', is_active } = req.query;
+        const offset = (page - 1) * size;
 
-        // Construir la consulta base
-        let query = 'SELECT * FROM categorias';
-        const queryParams = [];
-        const whereConditions = [];
+        let query = `
+            SELECT * FROM categorias
+            WHERE 1=1
+        `;
 
-        // Agregar filtros si existen
+        const params = [];
+        let paramIndex = 1;
+
         if (buscar) {
-            whereConditions.push(`nombre ILIKE $${queryParams.length + 1}`);
-            queryParams.push(`%${buscar}%`);
+            query += ` AND (nombre ILIKE $${paramIndex} OR descripcion ILIKE $${paramIndex})`;
+            params.push(`%${buscar}%`);
+            paramIndex++;
         }
 
-        // Agregar condiciones WHERE si existen
-        if (whereConditions.length > 0) {
-            query += ' WHERE ' + whereConditions.join(' AND ');
+        if (is_active !== undefined) {
+            query += ` AND is_active = $${paramIndex}`;
+            params.push(is_active === 'true' || is_active === true);
+            paramIndex++;
         }
 
-        // Agregar ordenamiento y paginación
-        query += ' ORDER BY id';
-        query += ` OFFSET $${queryParams.length + 1} LIMIT $${queryParams.length + 2}`;
-        queryParams.push(offset, size);
+        // Obtener total de elementos
+        const countQuery = `
+            SELECT COUNT(*) 
+            FROM categorias
+            WHERE 1=1
+            ${buscar ? `AND (nombre ILIKE $1 OR descripcion ILIKE $1)` : ''}
+            ${is_active !== undefined ? `AND is_active = $${buscar ? '2' : '1'}` : ''}
+        `;
 
-        // Consulta para contar el total de elementos
-        let countQuery = 'SELECT COUNT(*) FROM categorias';
-        if (whereConditions.length > 0) {
-            countQuery += ' WHERE ' + whereConditions.join(' AND ');
-        }
+        const countParams = [];
+        if (buscar) countParams.push(`%${buscar}%`);
+        if (is_active !== undefined) countParams.push(is_active === 'true' || is_active === true);
 
-        const [resultado, countResult] = await Promise.all([
-            db.query(query, queryParams),
-            db.query(countQuery, queryParams.slice(0, queryParams.length - 2))
-        ]);
-
-        const totalElements = parseInt(countResult.rows[0]?.count || 0);
+        const countResult = await db.query(countQuery, countParams);
+        const totalElements = parseInt(countResult.rows[0].count);
         const totalPages = Math.ceil(totalElements / size);
 
+        // Agregar ordenamiento y paginación
+        query += ` ORDER BY nombre ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(size, offset);
+
+        const result = await db.query(query, params);
+
         res.json({
-            data: resultado.rows,
-            page,
-            size,
+            data: result.rows,
+            page: parseInt(page),
+            size: parseInt(size),
             totalElements,
             totalPages,
-            buscar: buscar || null
+            buscar,
+            is_active: is_active !== undefined ? (is_active === 'true' || is_active === true) : null
         });
     } catch (error) {
         console.error('Error al obtener categorías:', error);
-        res.status(500).json({ mensaje: 'Error del servidor' });
+        res.status(500).json({ mensaje: 'Error al obtener las categorías' });
     }
 };
 
 // Crear categoría
 const crearCategoria = async (req, res) => {
-    const { nombre, descripcion } = req.body;
+    const { nombre, descripcion, is_active } = req.body;
 
-    // Validar campos obligatorios
-    const errores = validarCategoria({ nombre });
-    if (errores.length > 0) {
-        return res.status(400).json({ mensaje: 'Error de validación', errores });
+    // Validar campos
+    if (!nombre || nombre.trim().length === 0) {
+        return res.status(400).json({
+            mensaje: 'Error de validación',
+            errores: ['El nombre es obligatorio']
+        });
+    }
+    if (nombre.length > 100) {
+        return res.status(400).json({
+            mensaje: 'Error de validación',
+            errores: ['El nombre no puede tener más de 100 caracteres']
+        });
     }
 
     try {
@@ -103,32 +120,25 @@ const crearCategoria = async (req, res) => {
             });
         }
 
-        const query = `
-      INSERT INTO categorias (nombre, descripcion)
-      VALUES ($1, $2)
-      RETURNING *;
-    `;
+        const result = await db.query(
+            'INSERT INTO categorias (nombre, descripcion, is_active) VALUES ($1, $2, $3) RETURNING *',
+            [nombre.trim(), descripcion || null, is_active !== undefined ? is_active : true]
+        );
 
-        const values = [
-            nombre.trim(),
-            descripcion || null
-        ];
-
-        const resultado = await db.query(query, values);
         res.status(201).json({
-            data: resultado.rows[0],
+            data: result.rows[0],
             mensaje: 'Categoría creada exitosamente'
         });
     } catch (error) {
         console.error('Error al crear categoría:', error);
-        res.status(500).json({ mensaje: 'Error del servidor' });
+        res.status(500).json({ mensaje: 'Error al crear la categoría' });
     }
 };
 
 // Actualizar categoría
 const actualizarCategoria = async (req, res) => {
     const { id } = req.params;
-    const { nombre, descripcion } = req.body;
+    const { nombre, descripcion, is_active } = req.body;
 
     // Validar ID
     if (!Number.isInteger(Number(id))) {
@@ -167,12 +177,12 @@ const actualizarCategoria = async (req, res) => {
 
         // Verificar si ya existe otra categoría con el mismo nombre
         if (nombre) {
-            const nombreExistente = await db.query(
+            const nombreDuplicado = await db.query(
                 'SELECT id FROM categorias WHERE nombre = $1 AND id != $2',
                 [nombre.trim(), id]
             );
 
-            if (nombreExistente.rows.length > 0) {
+            if (nombreDuplicado.rows.length > 0) {
                 return res.status(400).json({
                     mensaje: 'Error de validación',
                     errores: ['Ya existe otra categoría con este nombre']
@@ -180,7 +190,7 @@ const actualizarCategoria = async (req, res) => {
             }
         }
 
-        // Construir la consulta de actualización
+        // Construir la consulta de actualización dinámicamente
         const updates = [];
         const values = [];
         let paramIndex = 1;
@@ -197,6 +207,12 @@ const actualizarCategoria = async (req, res) => {
             paramIndex++;
         }
 
+        if (is_active !== undefined) {
+            updates.push(`is_active = $${paramIndex}`);
+            values.push(is_active === true || is_active === 'true' || is_active === 1);
+            paramIndex++;
+        }
+
         if (updates.length === 0) {
             return res.status(400).json({
                 mensaje: 'Error de validación',
@@ -206,39 +222,31 @@ const actualizarCategoria = async (req, res) => {
 
         values.push(id);
         const query = `
-      UPDATE categorias
-      SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $${paramIndex}
-      RETURNING *;
-    `;
+            UPDATE categorias 
+            SET ${updates.join(', ')}
+            WHERE id = $${paramIndex}
+            RETURNING *
+        `;
 
-        const resultado = await db.query(query, values);
+        const result = await db.query(query, values);
         res.json({
-            data: resultado.rows[0],
+            data: result.rows[0],
             mensaje: 'Categoría actualizada exitosamente'
         });
     } catch (error) {
         console.error('Error al actualizar categoría:', error);
-        res.status(500).json({ mensaje: 'Error del servidor' });
+        res.status(500).json({ mensaje: 'Error al actualizar la categoría' });
     }
 };
 
 // Eliminar categoría
 const eliminarCategoria = async (req, res) => {
-    const { id } = req.params;
-
-    // Validar ID
-    if (!Number.isInteger(Number(id))) {
-        return res.status(400).json({
-            mensaje: 'Error de validación',
-            errores: ['ID de categoría inválido']
-        });
-    }
-
     try {
+        const { id } = req.params;
+
         // Verificar si la categoría existe
         const categoriaExistente = await db.query(
-            'SELECT id FROM categorias WHERE id = $1',
+            'SELECT * FROM categorias WHERE id = $1',
             [id]
         );
 
@@ -246,7 +254,7 @@ const eliminarCategoria = async (req, res) => {
             return res.status(404).json({ mensaje: 'Categoría no encontrada' });
         }
 
-        // Verificar si la categoría está asociada a productos
+        // Verificar si hay productos asociados a esta categoría
         const productosAsociados = await db.query(
             'SELECT COUNT(*) FROM productos WHERE categoria_id = $1',
             [id]
@@ -254,23 +262,20 @@ const eliminarCategoria = async (req, res) => {
 
         if (parseInt(productosAsociados.rows[0].count) > 0) {
             return res.status(400).json({
-                mensaje: 'Error de validación',
-                errores: ['No se puede eliminar la categoría porque tiene productos asociados']
+                mensaje: 'No se puede eliminar la categoría porque tiene productos asociados'
             });
         }
 
-        const resultado = await db.query(
-            'DELETE FROM categorias WHERE id = $1 RETURNING *',
+        // Eliminar la categoría
+        await db.query(
+            'DELETE FROM categorias WHERE id = $1',
             [id]
         );
 
-        res.json({
-            data: resultado.rows[0],
-            mensaje: 'Categoría eliminada exitosamente'
-        });
+        res.json({ mensaje: 'Categoría eliminada exitosamente' });
     } catch (error) {
         console.error('Error al eliminar categoría:', error);
-        res.status(500).json({ mensaje: 'Error del servidor' });
+        res.status(500).json({ mensaje: 'Error al eliminar la categoría' });
     }
 };
 

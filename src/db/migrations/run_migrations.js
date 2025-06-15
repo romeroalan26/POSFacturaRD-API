@@ -1,21 +1,21 @@
+const fs = require('fs');
+const path = require('path');
 const db = require('../index');
 
-async function runMigration() {
+async function runMigrations() {
     try {
-        const migration = `
-      ALTER TABLE ventas
-      ADD COLUMN IF NOT EXISTS subtotal numeric(10,2) DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS itbis_total numeric(10,2) DEFAULT 0,
-      ADD COLUMN IF NOT EXISTS total_final numeric(10,2) DEFAULT 0;
-    `;
+        // Leer y ejecutar la migración de actualización de permisos
+        const migrationPath = path.join(__dirname, 'update_roles_permissions.sql');
+        const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
 
-        await db.query(migration);
-        console.log('Migración ejecutada exitosamente');
+        await db.query(migrationSQL);
+        console.log('Migración de permisos ejecutada exitosamente');
+
         process.exit(0);
     } catch (error) {
-        console.error('Error al ejecutar la migración:', error);
+        console.error('Error al ejecutar migraciones:', error);
         process.exit(1);
     }
 }
 
-runMigration(); 
+runMigrations(); 

@@ -40,154 +40,134 @@ const getPagination = (req) => {
 };
 
 const registrarVenta = async (req, res) => {
-  const { productos, metodo_pago } = req.body;
-
-  // Validar datos de entrada
-  const errores = validarVenta({ productos, metodo_pago });
-  if (errores.length > 0) {
-    const mensaje = Array.isArray(errores) && errores.length > 0 ? errores[0] : 'Error de validación';
-    console.error('Error de validación en venta:', errores);
-    return res.status(400).json({ mensaje, errores });
-  }
-
   const client = await db.pool.connect();
-
   try {
     await client.query('BEGIN');
 
+    const { productos, metodo_pago } = req.body;
+
+    // Validar que el método de pago sea válido
+    if (!['efectivo', 'tarjeta', 'transferencia'].includes(metodo_pago)) {
+      return res.status(400).json({
+        mensaje: 'Error de validación',
+        errores: ['Método de pago inválido']
+      });
+    }
+
+    // Validar que haya productos
+    if (!productos || !Array.isArray(productos) || productos.length === 0) {
+      return res.status(400).json({
+        mensaje: 'Error de validación',
+        errores: ['Debe incluir al menos un producto']
+      });
+    }
+
+    // Obtener información de productos y validar stock
+    const productosInfo = [];
     let subtotal = 0;
     let itbis_total = 0;
-    const ITBIS_RATE = parseFloat(process.env.ITBIS_RATE || '0.18');
 
-    // Verificar existencia, stock y calcular ITBIS
-    for (const prod of productos) {
-      const productoExistente = await client.query(
-        'SELECT id, nombre, precio, stock, con_itbis FROM productos WHERE id = $1',
-        [prod.producto_id]
+    for (const item of productos) {
+      const { rows: [producto] } = await client.query(
+        'SELECT id, nombre, precio, precio_compra, stock, con_itbis FROM productos WHERE id = $1',
+        [item.producto_id]
       );
 
-      if (productoExistente.rows.length === 0) {
-        await client.query('ROLLBACK');
-        const errorMsg = `El producto con ID ${prod.producto_id} no existe`;
-        console.error('Error de validación:', errorMsg);
-        return res.status(400).json({
-          mensaje: errorMsg,
-          errores: [errorMsg]
-        });
+      if (!producto) {
+        throw new Error(`Producto no encontrado: ${item.producto_id}`);
       }
 
-      const producto = productoExistente.rows[0];
-
-      // Verificar stock
-      if (producto.stock < prod.cantidad) {
-        await client.query('ROLLBACK');
-        const errorMsg = `Stock insuficiente para el producto ${producto.nombre}. Stock disponible: ${producto.stock}, solicitado: ${prod.cantidad}`;
-        console.error('Error de validación:', errorMsg);
-        return res.status(400).json({
-          mensaje: errorMsg,
-          errores: [errorMsg]
-        });
+      if (producto.stock < item.cantidad) {
+        throw new Error(`Stock insuficiente para el producto: ${producto.nombre}`);
       }
 
-      // Convertir precios a números para la comparación
-      const precioActual = parseFloat(producto.precio);
-      const precioEnviado = parseFloat(prod.precio_unitario);
+      const precio_total = producto.precio * item.cantidad;
+      const itbis_producto = producto.con_itbis ? (precio_total * 0.18) : 0;
 
-      // Verificar precio con tolerancia
-      const diferenciaPrecio = Math.abs(precioActual - precioEnviado);
-      const tolerancia = 0.01;
+      productosInfo.push({
+        ...producto,
+        cantidad: item.cantidad,
+        precio_total,
+        itbis_producto
+      });
 
-      if (diferenciaPrecio > tolerancia) {
-        await client.query('ROLLBACK');
-        const errorMsg = `El precio del producto "${producto.nombre}" ha cambiado. Precio actual: ${precioActual.toFixed(2)}, Precio enviado: ${precioEnviado.toFixed(2)}`;
-        console.error('Error de validación:', errorMsg);
-        return res.status(400).json({
-          mensaje: errorMsg,
-          errores: [errorMsg]
-        });
-      }
-
-      // Calcular subtotal e ITBIS
-      const productoSubtotal = precioEnviado * prod.cantidad;
-      subtotal += productoSubtotal;
-      if (producto.con_itbis === true) {
-        itbis_total += productoSubtotal * ITBIS_RATE;
-      }
+      subtotal += precio_total;
+      itbis_total += itbis_producto;
     }
 
-    // Redondear a 2 decimales
-    subtotal = parseFloat(subtotal.toFixed(2));
-    itbis_total = parseFloat(itbis_total.toFixed(2));
-    const total_final = parseFloat((subtotal + itbis_total).toFixed(2));
+    const total_final = subtotal + itbis_total;
 
-    const ventaRes = await client.query(
-      'INSERT INTO ventas (subtotal, itbis_total, total_final, metodo_pago) VALUES ($1, $2, $3, $4) RETURNING *',
-      [subtotal, itbis_total, total_final, metodo_pago.toLowerCase()]
+    // Insertar la venta
+    const { rows: [venta] } = await client.query(
+      `INSERT INTO ventas (total, metodo_pago, subtotal, itbis_total, total_final, usuario_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, fecha, total, metodo_pago, subtotal, itbis_total, total_final, usuario_id`,
+      [total_final, metodo_pago, subtotal, itbis_total, total_final, req.user.id]
     );
 
-    const ventaId = ventaRes.rows[0].id;
+    // Insertar productos de la venta y actualizar stock
+    const ventaProductos = [];
+    let ganancia_total_venta = 0;
 
-    for (const prod of productos) {
-      await client.query(
-        'INSERT INTO venta_productos (venta_id, producto_id, cantidad, precio_unitario) VALUES ($1, $2, $3, $4)',
-        [ventaId, prod.producto_id, prod.cantidad, parseFloat(prod.precio_unitario)]
+    for (const item of productosInfo) {
+      // Insertar en venta_productos con el precio_compra del producto
+      const { rows: [ventaProducto] } = await client.query(
+        `INSERT INTO venta_productos (venta_id, producto_id, cantidad, precio_unitario, precio_compra)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING venta_id, producto_id, cantidad, precio_unitario, precio_compra`,
+        [venta.id, item.id, item.cantidad, item.precio, item.precio_compra]
       );
 
+      // Calcular ganancias
+      const ganancia_unitaria = item.precio - item.precio_compra;
+      const ganancia_total = ganancia_unitaria * item.cantidad;
+      const margen_ganancia = (ganancia_unitaria / item.precio_compra) * 100;
+
+      ventaProductos.push({
+        ...ventaProducto,
+        ganancia_unitaria,
+        ganancia_total,
+        margen_ganancia
+      });
+
+      ganancia_total_venta += ganancia_total;
+
+      // Actualizar stock
       await client.query(
         'UPDATE productos SET stock = stock - $1 WHERE id = $2',
-        [prod.cantidad, prod.producto_id]
+        [item.cantidad, item.id]
       );
     }
+
+    // Calcular margen promedio
+    const margen_promedio = ventaProductos.reduce((acc, curr) => acc + curr.margen_ganancia, 0) / ventaProductos.length;
+
+    // Obtener información del usuario
+    const { rows: [usuario] } = await client.query(
+      'SELECT id, nombre, email FROM usuarios WHERE id = $1',
+      [req.user.id]
+    );
 
     await client.query('COMMIT');
 
-    // Obtener la venta completa con sus productos
-    const ventaCompleta = await client.query(
-      `SELECT v.*, 
-        json_agg(
-          json_build_object(
-            'producto_id', vp.producto_id,
-            'nombre', p.nombre,
-            'cantidad', vp.cantidad,
-            'precio_unitario', vp.precio_unitario
-          )
-        ) AS productos
-      FROM ventas v
-      LEFT JOIN venta_productos vp ON v.id = vp.venta_id
-      LEFT JOIN productos p ON vp.producto_id = p.id
-      WHERE v.id = $1
-      GROUP BY v.id`,
-      [ventaId]
-    );
-
     res.status(201).json({
-      data: ventaCompleta.rows[0],
+      data: {
+        ...venta,
+        productos: ventaProductos,
+        ganancia_total_venta,
+        margen_promedio,
+        usuario
+      },
       mensaje: 'Venta registrada exitosamente'
     });
 
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error al registrar venta:', error);
-
-    // Determinar el tipo de error y responder apropiadamente
-    if (error.code === '23505') { // Violación de restricción única
-      res.status(400).json({
-        mensaje: 'Error de validación',
-        errores: ['Ya existe una venta con los mismos datos']
-      });
-    } else if (error.code === '23503') { // Violación de clave foránea
-      res.status(400).json({
-        mensaje: 'Error de validación',
-        errores: ['Uno de los productos no existe en la base de datos']
-      });
-    } else if (error.code === '22P02') { // Error de tipo de dato
-      res.status(400).json({
-        mensaje: 'Error de validación',
-        errores: ['Tipo de dato inválido en uno de los campos']
-      });
-    } else {
-      res.status(500).json({ mensaje: 'Error del servidor' });
-    }
+    res.status(400).json({
+      mensaje: 'Error de validación',
+      errores: [error.message]
+    });
   } finally {
     client.release();
   }
@@ -195,88 +175,275 @@ const registrarVenta = async (req, res) => {
 
 const obtenerVentas = async (req, res) => {
   try {
-    const { fecha_inicio, fecha_fin, metodo_pago } = req.query;
-    const { page, size, offset } = getPagination(req);
+    const { page = 1, size = 10, fecha_inicio, fecha_fin, metodo_pago } = req.query;
+    const offset = (page - 1) * size;
 
-    // Construir la consulta base
     let query = `
+      WITH venta_ganancias AS (
+        SELECT 
+          venta_id,
+          ROUND((precio_unitario - precio_compra) * cantidad, 2) as ganancia_total,
+          CASE 
+            WHEN precio_compra > 0 THEN ROUND(((precio_unitario - precio_compra) / precio_compra * 100), 2)
+            ELSE 0 
+          END as margen_ganancia
+        FROM venta_productos
+      )
       SELECT v.*, 
-        json_agg(
-          json_build_object(
-            'producto_id', vp.producto_id,
-            'nombre', p.nombre,
-            'cantidad', vp.cantidad,
-            'precio_unitario', vp.precio_unitario
-          )
-        ) AS productos
+             COALESCE(SUM(vg.ganancia_total), 0) as ganancia_total_venta,
+             ROUND(AVG(vg.margen_ganancia), 2) as margen_promedio,
+             u.id as usuario_id,
+             u.nombre as usuario_nombre,
+             u.email as usuario_email
       FROM ventas v
-      LEFT JOIN venta_productos vp ON v.id = vp.venta_id
-      LEFT JOIN productos p ON vp.producto_id = p.id
+      LEFT JOIN venta_ganancias vg ON v.id = vg.venta_id
+      LEFT JOIN usuarios u ON v.usuario_id = u.id
     `;
 
-    // Agregar filtros si existen
-    const whereConditions = [];
     const queryParams = [];
-    let paramIndex = 1;
+    const conditions = [];
 
     if (fecha_inicio) {
-      whereConditions.push(`v.fecha >= $${paramIndex}`);
       queryParams.push(fecha_inicio);
-      paramIndex++;
+      conditions.push(`v.fecha >= $${queryParams.length}`);
     }
 
     if (fecha_fin) {
-      whereConditions.push(`v.fecha <= $${paramIndex}`);
       queryParams.push(fecha_fin);
-      paramIndex++;
+      conditions.push(`v.fecha <= $${queryParams.length}`);
     }
 
     if (metodo_pago) {
-      whereConditions.push(`v.metodo_pago = $${paramIndex}`);
-      queryParams.push(metodo_pago.toLowerCase());
-      paramIndex++;
+      queryParams.push(metodo_pago);
+      conditions.push(`v.metodo_pago = $${queryParams.length}`);
     }
 
-    if (whereConditions.length > 0) {
-      query += ' WHERE ' + whereConditions.join(' AND ');
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
     }
 
-    // Agregar agrupación y ordenamiento
-    query += ' GROUP BY v.id ORDER BY v.fecha DESC';
+    query += ' GROUP BY v.id, u.id ORDER BY v.fecha DESC';
 
-    // Agregar paginación
-    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    queryParams.push(size, offset);
-
-    const resultado = await db.query(query, queryParams);
-
-    // Obtener el total de registros para la paginación
+    // Obtener total de registros
     const countQuery = `
-      SELECT COUNT(DISTINCT v.id) 
-      FROM ventas v
-      ${whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : ''}
+      SELECT COUNT(*) as total 
+      FROM (
+        SELECT v.id
+        FROM ventas v
+        ${conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''}
+        GROUP BY v.id
+      ) as subquery
     `;
-    const totalResult = await db.query(countQuery, queryParams.slice(0, -2));
-    const totalElements = parseInt(totalResult.rows[0].count);
-    const totalPages = Math.ceil(totalElements / size);
+    const { rows: [{ total = 0 }] } = await db.query(countQuery, queryParams);
+
+    // Obtener ventas con paginación
+    queryParams.push(size, offset);
+    query += ` LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}`;
+    const { rows: ventas } = await db.query(query, queryParams);
+
+    // Obtener productos de cada venta
+    for (const venta of ventas) {
+      const { rows: productos } = await db.query(
+        `SELECT vp.*, 
+                ROUND((vp.precio_unitario - vp.precio_compra), 2) as ganancia_unitaria,
+                ROUND((vp.precio_unitario - vp.precio_compra) * vp.cantidad, 2) as ganancia_total,
+                CASE 
+                  WHEN vp.precio_compra > 0 THEN ROUND(((vp.precio_unitario - vp.precio_compra) / vp.precio_compra * 100), 2)
+                  ELSE 0 
+                END as margen_ganancia
+         FROM venta_productos vp
+         WHERE vp.venta_id = $1`,
+        [venta.id]
+      );
+      venta.productos = productos;
+      venta.usuario = {
+        id: venta.usuario_id,
+        nombre: venta.usuario_nombre,
+        email: venta.usuario_email
+      };
+      delete venta.usuario_id;
+      delete venta.usuario_nombre;
+      delete venta.usuario_email;
+    }
+
+    // Calcular totales del período
+    const { rows: [{ ganancia_total_periodo, margen_promedio_periodo }] } = await db.query(
+      `WITH venta_ganancias AS (
+        SELECT 
+          ROUND((precio_unitario - precio_compra) * cantidad, 2) as ganancia_total,
+          CASE 
+            WHEN precio_compra > 0 THEN ROUND(((precio_unitario - precio_compra) / precio_compra * 100), 2)
+            ELSE 0 
+          END as margen_ganancia
+        FROM venta_productos vp
+        JOIN ventas v ON v.id = vp.venta_id
+        ${conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : ''}
+      )
+      SELECT 
+        COALESCE(SUM(ganancia_total), 0) as ganancia_total_periodo,
+        ROUND(AVG(margen_ganancia), 2) as margen_promedio_periodo
+      FROM venta_ganancias`,
+      queryParams.slice(0, -2)
+    );
 
     res.json({
-      data: resultado.rows,
-      page,
-      size,
-      totalElements,
-      totalPages,
-      fecha_inicio: fecha_inicio || null,
-      fecha_fin: fecha_fin || null,
-      metodo_pago: metodo_pago || null
+      data: ventas,
+      page: parseInt(page),
+      size: parseInt(size),
+      totalElements: parseInt(total),
+      totalPages: Math.ceil(total / size),
+      ganancia_total_periodo,
+      margen_promedio_periodo
     });
+
   } catch (error) {
     console.error('Error al obtener ventas:', error);
-    res.status(500).json({ mensaje: 'Error del servidor' });
+    res.status(500).json({
+      mensaje: 'Error al obtener ventas',
+      error: error.message
+    });
+  }
+};
+
+const obtenerVenta = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { rows: [venta] } = await db.query(
+      `WITH venta_ganancias AS (
+        SELECT 
+          venta_id,
+          ROUND((precio_unitario - precio_compra) * cantidad, 2) as ganancia_total,
+          CASE 
+            WHEN precio_compra > 0 THEN ROUND(((precio_unitario - precio_compra) / precio_compra * 100), 2)
+            ELSE 0 
+          END as margen_ganancia
+        FROM venta_productos
+      )
+      SELECT v.*, 
+             COALESCE(SUM(vg.ganancia_total), 0) as ganancia_total_venta,
+             ROUND(AVG(vg.margen_ganancia), 2) as margen_promedio,
+             u.id as usuario_id,
+             u.nombre as usuario_nombre,
+             u.email as usuario_email
+      FROM ventas v
+      LEFT JOIN venta_ganancias vg ON v.id = vg.venta_id
+      LEFT JOIN usuarios u ON v.usuario_id = u.id
+      WHERE v.id = $1
+      GROUP BY v.id, u.id`,
+      [id]
+    );
+
+    if (!venta) {
+      return res.status(404).json({
+        mensaje: 'Venta no encontrada'
+      });
+    }
+
+    const { rows: productos } = await db.query(
+      `SELECT vp.*, 
+              p.nombre as nombre_producto,
+              c.nombre as categoria_nombre,
+              ROUND((vp.precio_unitario - vp.precio_compra), 2) as ganancia_unitaria,
+              ROUND((vp.precio_unitario - vp.precio_compra) * vp.cantidad, 2) as ganancia_total,
+              CASE 
+                WHEN vp.precio_compra > 0 THEN ROUND(((vp.precio_unitario - vp.precio_compra) / vp.precio_compra * 100), 2)
+                ELSE 0 
+              END as margen_ganancia
+       FROM venta_productos vp
+       JOIN productos p ON p.id = vp.producto_id
+       LEFT JOIN categorias c ON p.categoria_id = c.id
+       WHERE vp.venta_id = $1`,
+      [id]
+    );
+
+    venta.productos = productos;
+    venta.usuario = {
+      id: venta.usuario_id,
+      nombre: venta.usuario_nombre,
+      email: venta.usuario_email
+    };
+    delete venta.usuario_id;
+    delete venta.usuario_nombre;
+    delete venta.usuario_email;
+
+    res.json({
+      data: venta
+    });
+
+  } catch (error) {
+    console.error('Error al obtener venta:', error);
+    res.status(500).json({
+      mensaje: 'Error al obtener venta',
+      error: error.message
+    });
+  }
+};
+
+const eliminarVenta = async (req, res) => {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+
+    // Validar que la venta existe
+    const { rows: [venta] } = await client.query(
+      'SELECT * FROM ventas WHERE id = $1',
+      [id]
+    );
+
+    if (!venta) {
+      return res.status(404).json({
+        mensaje: 'Venta no encontrada'
+      });
+    }
+
+    // Obtener los productos de la venta
+    const { rows: productosVenta } = await client.query(
+      'SELECT * FROM venta_productos WHERE venta_id = $1',
+      [id]
+    );
+
+    // Devolver el stock de los productos
+    for (const producto of productosVenta) {
+      await client.query(
+        'UPDATE productos SET stock = stock + $1 WHERE id = $2',
+        [producto.cantidad, producto.producto_id]
+      );
+    }
+
+    // Eliminar los productos de la venta
+    await client.query('DELETE FROM venta_productos WHERE venta_id = $1', [id]);
+
+    // Eliminar la venta
+    await client.query('DELETE FROM ventas WHERE id = $1', [id]);
+
+    await client.query('COMMIT');
+
+    res.json({
+      mensaje: 'Venta eliminada exitosamente',
+      data: {
+        venta,
+        productos: productosVenta
+      }
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error al eliminar venta:', error);
+    res.status(500).json({
+      mensaje: 'Error al eliminar venta',
+      error: error.message
+    });
+  } finally {
+    client.release();
   }
 };
 
 module.exports = {
   registrarVenta,
-  obtenerVentas
+  obtenerVentas,
+  obtenerVenta,
+  eliminarVenta
 };

@@ -7,11 +7,132 @@
 
 /**
  * @swagger
+ * components:
+ *   schemas:
+ *     Producto:
+ *       type: object
+ *       required:
+ *         - nombre
+ *         - precio
+ *         - precio_compra
+ *         - stock
+ *       properties:
+ *         id:
+ *           type: integer
+ *           description: ID único del producto
+ *         nombre:
+ *           type: string
+ *           description: Nombre del producto
+ *         precio:
+ *           type: string
+ *           format: float
+ *           description: Precio de venta del producto
+ *         precio_compra:
+ *           type: string
+ *           format: float
+ *           description: Precio de compra del producto
+ *         stock:
+ *           type: integer
+ *           description: Cantidad disponible en inventario
+ *         con_itbis:
+ *           type: boolean
+ *           description: Indica si el producto tiene ITBIS
+ *         categoria_id:
+ *           type: integer
+ *           description: ID de la categoría del producto
+ *         imagen:
+ *           type: string
+ *           description: URL de la imagen del producto
+ *         descripcion:
+ *           type: string
+ *           description: Descripción detallada del producto
+ *         is_active:
+ *           type: boolean
+ *           description: Estado del producto (activo/inactivo)
+ *         categoria_nombre:
+ *           type: string
+ *           description: Nombre de la categoría del producto
+ *         ganancia_unitaria:
+ *           type: string
+ *           format: float
+ *           description: Diferencia entre precio de venta y precio de compra
+ *         margen_ganancia:
+ *           type: string
+ *           format: float
+ *           description: Porcentaje de ganancia. Si precio_compra es 0, el margen será 0
+ *       example:
+ *         id: 1
+ *         nombre: "Cerveza Presidente"
+ *         precio: "175.00"
+ *         precio_compra: "140.00"
+ *         stock: 100
+ *         con_itbis: true
+ *         categoria_id: 1
+ *         imagen: "imagen-123456789.jpg"
+ *         descripcion: "Cerveza Presidente grande"
+ *         is_active: true
+ *         categoria_nombre: "Cervezas"
+ *         ganancia_unitaria: "35.00"
+ *         margen_ganancia: "25.00"
+ * 
+ *     ProductoInput:
+ *       type: object
+ *       required:
+ *         - nombre
+ *         - precio
+ *         - precio_compra
+ *         - stock
+ *       properties:
+ *         nombre:
+ *           type: string
+ *           description: Nombre del producto
+ *         precio:
+ *           type: number
+ *           format: float
+ *           minimum: 0
+ *           description: Precio de venta del producto
+ *         precio_compra:
+ *           type: number
+ *           format: float
+ *           minimum: 0
+ *           description: Precio de compra del producto (debe ser menor que el precio de venta)
+ *         stock:
+ *           type: integer
+ *           minimum: 0
+ *           description: Cantidad disponible en inventario
+ *         con_itbis:
+ *           type: boolean
+ *           description: Indica si el producto tiene ITBIS
+ *         categoria_id:
+ *           type: integer
+ *           description: ID de la categoría del producto
+ *         imagen:
+ *           type: string
+ *           description: URL de la imagen del producto
+ *         descripcion:
+ *           type: string
+ *           description: Descripción detallada del producto
+ *         is_active:
+ *           type: boolean
+ *           description: Estado del producto (activo/inactivo)
+ *       example:
+ *         nombre: "Cerveza Presidente"
+ *         precio: 175.00
+ *         precio_compra: 140.00
+ *         stock: 100
+ *         con_itbis: true
+ *         categoria_id: 1
+ *         imagen: "imagen-123456789.jpg"
+ *         descripcion: "Cerveza Presidente grande"
+ *         is_active: true
+ */
+
+/**
+ * @swagger
  * /api/productos:
  *   get:
- *     summary: Obtiene la lista de productos
+ *     summary: Obtener lista de productos
  *     tags: [Productos]
- *     description: Retorna la lista de productos con paginación y filtros. Los productos se ordenan por estado (activos primero) y luego por ID.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -27,8 +148,9 @@
  *         schema:
  *           type: integer
  *           minimum: 1
+ *           maximum: 100
  *           default: 10
- *         description: Cantidad de elementos por página
+ *         description: Tamaño de página
  *       - in: query
  *         name: categoria_id
  *         schema:
@@ -38,13 +160,7 @@
  *         name: buscar
  *         schema:
  *           type: string
- *         description: Buscar por nombre de producto
- *       - in: query
- *         name: is_active
- *         schema:
- *           type: boolean
- *           default: true
- *         description: Filtrar por productos activos (true) o inactivos (false)
+ *         description: Buscar por nombre
  *     responses:
  *       200:
  *         description: Lista de productos obtenida exitosamente
@@ -56,65 +172,35 @@
  *                 data:
  *                   type: array
  *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: integer
- *                       nombre:
- *                         type: string
- *                       precio:
- *                         type: string
- *                         format: float
- *                       stock:
- *                         type: integer
- *                       con_itbis:
- *                         type: boolean
- *                       categoria_id:
- *                         type: integer
- *                         nullable: true
- *                       categoria_nombre:
- *                         type: string
- *                         nullable: true
- *                       imagen:
- *                         type: string
- *                         nullable: true
- *                         description: Nombre del archivo de la imagen del producto
- *                       is_active:
- *                         type: boolean
- *                         description: Indica si el producto está activo o inactivo
+ *                     $ref: '#/components/schemas/Producto'
  *                 page:
  *                   type: integer
- *                   example: 1
+ *                   description: Página actual
  *                 size:
  *                   type: integer
- *                   example: 10
+ *                   description: Tamaño de página
  *                 totalElements:
  *                   type: integer
- *                   example: 100
+ *                   description: Total de elementos
  *                 totalPages:
  *                   type: integer
- *                   example: 10
+ *                   description: Total de páginas
  *                 categoria_id:
  *                   type: integer
  *                   nullable: true
+ *                   description: ID de categoría filtrado
  *                 buscar:
  *                   type: string
  *                   nullable: true
+ *                   description: Término de búsqueda
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permiso para ver productos
  *       500:
  *         description: Error del servidor
- */
-
-/**
- * @swagger
- * /api/productos:
+ * 
  *   post:
  *     summary: Crear un nuevo producto
  *     tags: [Productos]
- *     description: Crea un nuevo producto. Requiere rol de admin o inventario.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -122,32 +208,7 @@
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - nombre
- *               - precio
- *               - stock
- *             properties:
- *               nombre:
- *                 type: string
- *                 minLength: 1
- *                 maxLength: 100
- *                 description: Nombre del producto (máximo 100 caracteres)
- *               precio:
- *                 type: number
- *                 minimum: 0.01
- *                 description: Precio del producto (debe ser mayor a 0)
- *               stock:
- *                 type: integer
- *                 minimum: 0
- *                 description: Cantidad en inventario (debe ser 0 o mayor)
- *               con_itbis:
- *                 type: boolean
- *                 default: false
- *                 description: Indica si el producto tiene ITBIS
- *               categoria_id:
- *                 type: integer
- *                 description: ID de la categoría del producto
+ *             $ref: '#/components/schemas/ProductoInput'
  *     responses:
  *       201:
  *         description: Producto creado exitosamente
@@ -157,22 +218,7 @@
  *               type: object
  *               properties:
  *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                     nombre:
- *                       type: string
- *                     precio:
- *                       type: string
- *                       format: float
- *                     stock:
- *                       type: integer
- *                     con_itbis:
- *                       type: boolean
- *                     categoria_id:
- *                       type: integer
- *                       nullable: true
+ *                   $ref: '#/components/schemas/Producto'
  *                 mensaje:
  *                   type: string
  *                   example: "Producto creado exitosamente"
@@ -190,22 +236,16 @@
  *                   type: array
  *                   items:
  *                     type: string
- *                   example: ["El nombre es obligatorio", "El precio debe ser un número positivo"]
+ *                   example: ["El nombre es obligatorio", "El precio debe ser un número positivo", "El precio de compra debe ser menor que el precio de venta"]
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permiso para crear productos
  *       500:
  *         description: Error del servidor
- */
-
-/**
- * @swagger
+ * 
  * /api/productos/{id}:
- *   put:
- *     summary: Actualizar un producto existente
+ *   get:
+ *     summary: Obtener un producto por ID
  *     tags: [Productos]
- *     description: Actualiza un producto existente. Requiere rol de admin o inventario.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -214,33 +254,42 @@
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID del producto a actualizar
+ *         description: ID del producto
+ *     responses:
+ *       200:
+ *         description: Producto obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/Producto'
+ *       401:
+ *         description: No autorizado
+ *       404:
+ *         description: Producto no encontrado
+ *       500:
+ *         description: Error del servidor
+ * 
+ *   put:
+ *     summary: Actualizar un producto
+ *     tags: [Productos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del producto
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               nombre:
- *                 type: string
- *                 minLength: 1
- *                 maxLength: 100
- *                 description: Nombre del producto (máximo 100 caracteres)
- *               precio:
- *                 type: number
- *                 minimum: 0.01
- *                 description: Precio del producto (debe ser mayor a 0)
- *               stock:
- *                 type: integer
- *                 minimum: 0
- *                 description: Cantidad en inventario (debe ser 0 o mayor)
- *               con_itbis:
- *                 type: boolean
- *                 description: Indica si el producto tiene ITBIS
- *               categoria_id:
- *                 type: integer
- *                 description: ID de la categoría del producto
+ *             $ref: '#/components/schemas/ProductoInput'
  *     responses:
  *       200:
  *         description: Producto actualizado exitosamente
@@ -250,22 +299,7 @@
  *               type: object
  *               properties:
  *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                     nombre:
- *                       type: string
- *                     precio:
- *                       type: string
- *                       format: float
- *                     stock:
- *                       type: integer
- *                     con_itbis:
- *                       type: boolean
- *                     categoria_id:
- *                       type: integer
- *                       nullable: true
+ *                   $ref: '#/components/schemas/Producto'
  *                 mensaje:
  *                   type: string
  *                   example: "Producto actualizado exitosamente"
@@ -283,19 +317,17 @@
  *                   type: array
  *                   items:
  *                     type: string
- *                   example: ["El precio debe ser un número positivo", "El stock debe ser un número entero no negativo"]
+ *                   example: ["El nombre es obligatorio", "El precio debe ser un número positivo", "El precio de compra debe ser menor que el precio de venta"]
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permiso para actualizar productos
  *       404:
  *         description: Producto no encontrado
  *       500:
  *         description: Error del servidor
+ * 
  *   delete:
  *     summary: Eliminar un producto
  *     tags: [Productos]
- *     description: Elimina un producto (soft delete). Requiere rol de admin.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -304,7 +336,7 @@
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID del producto a eliminar
+ *         description: ID del producto
  *     responses:
  *       200:
  *         description: Producto eliminado exitosamente
@@ -313,45 +345,11 @@
  *             schema:
  *               type: object
  *               properties:
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                     nombre:
- *                       type: string
- *                     precio:
- *                       type: string
- *                       format: float
- *                     stock:
- *                       type: integer
- *                     con_itbis:
- *                       type: boolean
- *                     categoria_id:
- *                       type: integer
- *                       nullable: true
  *                 mensaje:
  *                   type: string
  *                   example: "Producto eliminado exitosamente"
- *       400:
- *         description: Error de validación
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 mensaje:
- *                   type: string
- *                   example: "Error de validación"
- *                 errores:
- *                   type: array
- *                   items:
- *                     type: string
- *                   example: ["ID de producto inválido"]
  *       401:
  *         description: No autorizado
- *       403:
- *         description: No tiene permiso para eliminar productos
  *       404:
  *         description: Producto no encontrado
  *       500:

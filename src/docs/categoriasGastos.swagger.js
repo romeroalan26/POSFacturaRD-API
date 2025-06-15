@@ -1,32 +1,22 @@
 /**
  * @swagger
- * tags:
- *   name: Categorías
- *   description: API para gestionar las categorías de productos
- */
-
-/**
- * @swagger
  * components:
  *   schemas:
- *     Categoria:
+ *     CategoriaGasto:
  *       type: object
- *       required:
- *         - nombre
- *         - is_active
  *       properties:
  *         id:
  *           type: integer
- *           description: ID único de la categoría
+ *           description: ID único de la categoría de gasto
  *         nombre:
  *           type: string
- *           description: Nombre de la categoría
+ *           description: Nombre de la categoría de gasto
  *         descripcion:
  *           type: string
- *           description: Descripción de la categoría
+ *           description: Descripción de la categoría de gasto
  *         is_active:
  *           type: boolean
- *           description: Estado de la categoría. Si es false, la categoría no podrá ser asignada a nuevos productos, pero los productos existentes mantendrán su referencia a esta categoría.
+ *           description: Estado de la categoría. Si es false, la categoría no podrá ser asignada a nuevos gastos, pero los gastos existentes mantendrán su referencia a esta categoría.
  *         created_at:
  *           type: string
  *           format: date-time
@@ -35,18 +25,22 @@
  *           type: string
  *           format: date-time
  *           description: Fecha de última actualización
+ *       required:
+ *         - nombre
+ *         - is_active
  */
 
 /**
  * @swagger
- * /api/categorias:
+ * /api/categorias-gastos:
  *   get:
- *     summary: Obtener todas las categorías
- *     tags: [Categorías]
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Obtener todas las categorías de gastos
  *     description: |
- *       Retorna una lista paginada de categorías. 
- *       Nota importante: Las categorías inactivas (is_active=false) seguirán apareciendo en los productos que las tengan asignadas, 
- *       pero no podrán ser asignadas a nuevos productos.
+ *       Retorna una lista paginada de categorías de gastos.
+ *       Nota importante: Las categorías inactivas (is_active=false) seguirán apareciendo en los gastos que las tengan asignadas,
+ *       pero no podrán ser asignadas a nuevos gastos.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -83,7 +77,7 @@
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/Categoria'
+ *                     $ref: '#/components/schemas/CategoriaGasto'
  *                 page:
  *                   type: integer
  *                   description: Número de página actual
@@ -99,7 +93,6 @@
  *                 buscar:
  *                   type: string
  *                   nullable: true
- *                   description: Término de búsqueda
  *                 is_active:
  *                   type: boolean
  *                   nullable: true
@@ -111,11 +104,12 @@
 
 /**
  * @swagger
- * /api/categorias/{id}:
+ * /api/categorias-gastos/{id}:
  *   get:
- *     summary: Obtener una categoría específica
- *     tags: [Categorías]
- *     description: Retorna los detalles de una categoría por su ID
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Obtener una categoría de gasto específica
+ *     description: Retorna los detalles de una categoría de gasto por su ID
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -131,7 +125,10 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Categoria'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   $ref: '#/components/schemas/CategoriaGasto'
  *       404:
  *         description: Categoría no encontrada
  *       401:
@@ -142,11 +139,12 @@
 
 /**
  * @swagger
- * /api/categorias:
+ * /api/categorias-gastos:
  *   post:
- *     summary: Crear una nueva categoría
- *     tags: [Categorías]
- *     description: Crea una nueva categoría. Requiere rol de admin o inventario.
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Crear una nueva categoría de gasto
+ *     description: Crea una nueva categoría de gasto (requiere permisos de administrador)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -160,16 +158,10 @@
  *             properties:
  *               nombre:
  *                 type: string
- *                 minLength: 1
- *                 maxLength: 100
- *                 description: Nombre de la categoría (máximo 100 caracteres)
+ *                 description: Nombre de la categoría
  *               descripcion:
  *                 type: string
  *                 description: Descripción de la categoría
- *               is_active:
- *                 type: boolean
- *                 description: Estado de la categoría (activo/inactivo)
- *                 default: true
  *     responses:
  *       201:
  *         description: Categoría creada exitosamente
@@ -179,27 +171,28 @@
  *               type: object
  *               properties:
  *                 data:
- *                   $ref: '#/components/schemas/Categoria'
+ *                   $ref: '#/components/schemas/CategoriaGasto'
  *                 mensaje:
  *                   type: string
- *                   example: "Categoría creada exitosamente"
+ *                   example: Categoría creada exitosamente
  *       400:
  *         description: Error de validación
  *       401:
  *         description: No autorizado
  *       403:
- *         description: No tiene permiso para crear categorías
+ *         description: No tiene permisos para realizar esta acción
  *       500:
  *         description: Error del servidor
  */
 
 /**
  * @swagger
- * /api/categorias/{id}:
+ * /api/categorias-gastos/{id}:
  *   put:
- *     summary: Actualizar una categoría existente
- *     tags: [Categorías]
- *     description: Actualiza una categoría existente. Requiere rol de admin o inventario.
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Actualizar una categoría de gasto
+ *     description: Actualiza los datos de una categoría de gasto existente (requiere permisos de administrador)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -208,25 +201,25 @@
  *         required: true
  *         schema:
  *           type: integer
- *         description: ID de la categoría a actualizar
+ *         description: ID de la categoría
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - nombre
  *             properties:
  *               nombre:
  *                 type: string
- *                 minLength: 1
- *                 maxLength: 100
- *                 description: Nombre de la categoría (máximo 100 caracteres)
+ *                 description: Nombre de la categoría
  *               descripcion:
  *                 type: string
  *                 description: Descripción de la categoría
- *               is_active:
+ *               activo:
  *                 type: boolean
- *                 description: Estado de la categoría (activo/inactivo)
+ *                 description: Estado de la categoría
  *     responses:
  *       200:
  *         description: Categoría actualizada exitosamente
@@ -236,16 +229,16 @@
  *               type: object
  *               properties:
  *                 data:
- *                   $ref: '#/components/schemas/Categoria'
+ *                   $ref: '#/components/schemas/CategoriaGasto'
  *                 mensaje:
  *                   type: string
- *                   example: "Categoría actualizada exitosamente"
+ *                   example: Categoría actualizada exitosamente
  *       400:
  *         description: Error de validación
  *       401:
  *         description: No autorizado
  *       403:
- *         description: No tiene permiso para actualizar categorías
+ *         description: No tiene permisos para realizar esta acción
  *       404:
  *         description: Categoría no encontrada
  *       500:
@@ -254,13 +247,14 @@
 
 /**
  * @swagger
- * /api/categorias/{id}:
+ * /api/categorias-gastos/{id}:
  *   delete:
- *     summary: Eliminar una categoría
- *     tags: [Categorías]
+ *     tags:
+ *       - Categorías de Gastos
+ *     summary: Eliminar una categoría de gasto
  *     description: |
- *       Elimina una categoría (requiere permisos de administrador).
- *       Nota: No se puede eliminar una categoría que tenga productos asociados.
+ *       Elimina una categoría de gasto (requiere permisos de administrador).
+ *       Nota: No se puede eliminar una categoría que tenga gastos asociados.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -282,7 +276,7 @@
  *                   type: string
  *                   example: Categoría eliminada exitosamente
  *       400:
- *         description: No se puede eliminar la categoría porque tiene productos asociados
+ *         description: No se puede eliminar la categoría porque tiene gastos asociados
  *         content:
  *           application/json:
  *             schema:
@@ -290,7 +284,7 @@
  *               properties:
  *                 mensaje:
  *                   type: string
- *                   example: No se puede eliminar la categoría porque tiene productos asociados
+ *                   example: No se puede eliminar la categoría porque tiene gastos asociados
  *       401:
  *         description: No autorizado
  *       403:
