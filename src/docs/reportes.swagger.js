@@ -756,3 +756,164 @@
  *       500:
  *         description: Error del servidor
  */
+
+/**
+ * @swagger
+ * /api/reportes/gastos:
+ *   get:
+ *     summary: Obtiene un reporte detallado de gastos con KPIs
+ *     description: Retorna un reporte completo de gastos incluyendo KPIs generales, por categoría, por mes, por usuario y tendencias
+ *     tags: [Reportes]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: fecha_inicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio del reporte (YYYY-MM-DD)
+ *       - in: query
+ *         name: fecha_fin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin del reporte (YYYY-MM-DD)
+ *       - in: query
+ *         name: categoria_id
+ *         schema:
+ *           type: integer
+ *         description: ID de la categoría para filtrar (opcional)
+ *     responses:
+ *       200:
+ *         description: Reporte de gastos obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     kpis_generales:
+ *                       type: object
+ *                       properties:
+ *                         total_gastos:
+ *                           type: integer
+ *                           example: 150
+ *                         total_monto:
+ *                           type: number
+ *                           format: float
+ *                           example: 50000.00
+ *                         promedio_gasto:
+ *                           type: number
+ *                           format: float
+ *                           example: 333.33
+ *                         gasto_maximo:
+ *                           type: number
+ *                           format: float
+ *                           example: 1000.00
+ *                         gasto_minimo:
+ *                           type: number
+ *                           format: float
+ *                           example: 50.00
+ *                         variacion_mensual:
+ *                           type: number
+ *                           format: float
+ *                           example: 5.25
+ *                     gastos_por_categoria:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           categoria_nombre:
+ *                             type: string
+ *                             example: "Servicios"
+ *                           cantidad:
+ *                             type: integer
+ *                             example: 45
+ *                           total:
+ *                             type: number
+ *                             format: float
+ *                             example: 15000.00
+ *                           porcentaje:
+ *                             type: number
+ *                             format: float
+ *                             example: 30.00
+ *                     gastos_por_mes:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           mes:
+ *                             type: string
+ *                             example: "2024-01"
+ *                           cantidad:
+ *                             type: integer
+ *                             example: 25
+ *                           total:
+ *                             type: number
+ *                             format: float
+ *                             example: 8500.00
+ *                     gastos_por_usuario:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           usuario_nombre:
+ *                             type: string
+ *                             example: "Juan Pérez"
+ *                           cantidad:
+ *                             type: integer
+ *                             example: 30
+ *                           total:
+ *                             type: number
+ *                             format: float
+ *                             example: 10000.00
+ *                     tendencia_gastos:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           dia:
+ *                             type: string
+ *                             format: date
+ *                             example: "2024-01-15"
+ *                           total:
+ *                             type: number
+ *                             format: float
+ *                             example: 500.00
+ *                     periodo:
+ *                       type: object
+ *                       properties:
+ *                         fecha_inicio:
+ *                           type: string
+ *                           format: date
+ *                           example: "2024-01-01"
+ *                         fecha_fin:
+ *                           type: string
+ *                           format: date
+ *                           example: "2024-01-31"
+ *                         categoria_id:
+ *                           type: integer
+ *                           example: 1
+ *       400:
+ *         description: Error de validación en los parámetros
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 mensaje:
+ *                   type: string
+ *                   example: "Error de validación"
+ *                 errores:
+ *                   type: array
+ *                   items:
+ *                     type: string
+ *                   example: ["La fecha de inicio es requerida"]
+ *       401:
+ *         description: No autorizado
+ *       500:
+ *         description: Error del servidor
+ */

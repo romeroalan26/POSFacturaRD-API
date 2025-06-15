@@ -9,7 +9,8 @@ const {
     obtenerTendenciaVentas,
     obtenerProductosBajoStock,
     obtenerReporteGanancias,
-    obtenerVentasPorCategoria
+    obtenerVentasPorCategoria,
+    obtenerReporteGastos
 } = require('../controllers/reportesController');
 const authMiddleware = require('../middleware/auth');
 const checkPermission = require('../middleware/checkPermission');
@@ -24,5 +25,6 @@ router.get('/tendencia-ventas', authMiddleware, checkPermission('reports', 'view
 router.get('/productos-bajo-stock', authMiddleware, checkPermission('reports', 'view'), obtenerProductosBajoStock);
 router.get('/ganancias', authMiddleware, checkPermission('reports', 'view'), obtenerReporteGanancias);
 router.get('/ventas-por-categoria', authMiddleware, checkPermission('reports', 'view'), obtenerVentasPorCategoria);
+router.get('/gastos', authMiddleware, checkPermission('reports', 'view'), obtenerReporteGastos);
 
 module.exports = router;

@@ -662,6 +662,147 @@ const obtenerVentasPorCategoria = async (req, res) => {
     }
 };
 
+const obtenerReporteGastos = async (req, res) => {
+    try {
+        const { fecha_inicio, fecha_fin, categoria_id } = req.query;
+        const errores = validarFechas(fecha_inicio, fecha_fin);
+        if (errores.length > 0) {
+            return res.status(400).json({ mensaje: 'Error de validación', errores });
+        }
+
+        // Consulta principal para obtener KPIs de gastos
+        let query = `
+            WITH gastos_periodo AS (
+                SELECT 
+                    g.*,
+                    c.nombre as categoria_nombre,
+                    u.nombre as usuario_nombre,
+                    DATE_TRUNC('month', g.fecha) as mes
+                FROM gastos g
+                LEFT JOIN categorias_gastos c ON g.categoria_id = c.id
+                LEFT JOIN usuarios u ON g.usuario_id = u.id
+                WHERE ($1::date IS NULL OR g.fecha::date >= $1::date)
+                AND ($2::date IS NULL OR g.fecha::date <= $2::date)
+                ${categoria_id ? 'AND g.categoria_id = $3' : ''}
+            )
+            SELECT 
+                -- KPIs Generales
+                COUNT(*) as total_gastos,
+                SUM(monto)::numeric(10,2) as total_monto,
+                AVG(monto)::numeric(10,2) as promedio_gasto,
+                MAX(monto)::numeric(10,2) as gasto_maximo,
+                MIN(monto)::numeric(10,2) as gasto_minimo,
+                
+                -- KPIs por Categoría
+                (
+                    SELECT json_agg(cat_stats)
+                    FROM (
+                        SELECT 
+                            categoria_nombre,
+                            COUNT(*) as cantidad,
+                            SUM(monto)::numeric(10,2) as total,
+                            ROUND((SUM(monto) * 100.0 / NULLIF((SELECT SUM(monto) FROM gastos_periodo), 0))::numeric, 2) as porcentaje
+                        FROM gastos_periodo
+                        GROUP BY categoria_nombre
+                        ORDER BY total DESC
+                    ) cat_stats
+                ) as gastos_por_categoria,
+                
+                -- KPIs por Mes
+                (
+                    SELECT json_agg(mes_stats)
+                    FROM (
+                        SELECT 
+                            TO_CHAR(mes, 'YYYY-MM') as mes,
+                            COUNT(*) as cantidad,
+                            SUM(monto)::numeric(10,2) as total
+                        FROM gastos_periodo
+                        GROUP BY mes
+                        ORDER BY mes
+                    ) mes_stats
+                ) as gastos_por_mes,
+                
+                -- KPIs por Usuario
+                (
+                    SELECT json_agg(user_stats)
+                    FROM (
+                        SELECT 
+                            usuario_nombre,
+                            COUNT(*) as cantidad,
+                            SUM(monto)::numeric(10,2) as total
+                        FROM gastos_periodo
+                        GROUP BY usuario_nombre
+                        ORDER BY total DESC
+                    ) user_stats
+                ) as gastos_por_usuario,
+                
+                -- Tendencia de Gastos
+                (
+                    SELECT json_agg(tendencia)
+                    FROM (
+                        SELECT 
+                            DATE_TRUNC('day', fecha) as dia,
+                            SUM(monto)::numeric(10,2) as total
+                        FROM gastos_periodo
+                        GROUP BY dia
+                        ORDER BY dia
+                    ) tendencia
+                ) as tendencia_gastos
+            FROM gastos_periodo
+        `;
+
+        const queryParams = [fecha_inicio, fecha_fin];
+        if (categoria_id) {
+            queryParams.push(categoria_id);
+        }
+
+        const resultado = await db.query(query, queryParams);
+        const reporte = resultado.rows[0];
+
+        // Calcular métricas adicionales
+        const gastosPorCategoria = reporte.gastos_por_categoria || [];
+        const gastosPorMes = reporte.gastos_por_mes || [];
+        const gastosPorUsuario = reporte.gastos_por_usuario || [];
+        const tendenciaGastos = reporte.tendencia_gastos || [];
+
+        // Calcular variación porcentual mensual
+        let variacionMensual = null;
+        if (gastosPorMes.length >= 2) {
+            const ultimoMes = gastosPorMes[gastosPorMes.length - 1].total;
+            const penultimoMes = gastosPorMes[gastosPorMes.length - 2].total;
+            if (penultimoMes > 0) {
+                variacionMensual = ((ultimoMes - penultimoMes) / penultimoMes * 100).toFixed(2);
+            }
+        }
+
+        res.json({
+            data: {
+                kpis_generales: {
+                    total_gastos: reporte.total_gastos,
+                    total_monto: reporte.total_monto,
+                    promedio_gasto: reporte.promedio_gasto,
+                    gasto_maximo: reporte.gasto_maximo,
+                    gasto_minimo: reporte.gasto_minimo,
+                    variacion_mensual: variacionMensual
+                },
+                gastos_por_categoria: gastosPorCategoria,
+                gastos_por_mes: gastosPorMes,
+                gastos_por_usuario: gastosPorUsuario,
+                tendencia_gastos: tendenciaGastos,
+                periodo: {
+                    fecha_inicio: fecha_inicio || null,
+                    fecha_fin: fecha_fin || null,
+                    categoria_id: categoria_id || null
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al obtener reporte de gastos:', error);
+        res.status(500).json({ mensaje: 'Error del servidor' });
+    }
+};
+
 module.exports = {
     obtenerVentasDiarias,
     obtenerProductosMasVendidos,
@@ -671,5 +812,6 @@ module.exports = {
     obtenerTendenciaVentas,
     obtenerProductosBajoStock,
     obtenerReporteGanancias,
-    obtenerVentasPorCategoria
+    obtenerVentasPorCategoria,
+    obtenerReporteGastos
 };
